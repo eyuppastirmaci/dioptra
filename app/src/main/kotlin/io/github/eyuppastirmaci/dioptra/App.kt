@@ -1,16 +1,27 @@
 package io.github.eyuppastirmaci.dioptra
 
 import io.github.eyuppastirmaci.dioptra.bootstrap.ApplicationBootstrap
+import io.github.eyuppastirmaci.dioptra.cli.parseCliOptions
+import org.slf4j.LoggerFactory
+import kotlin.system.exitProcess
 
-fun main() {
+fun main(args: Array<String>) {
+    val cliOptions = parseCliOptions(args)
+    configureLogging(cliOptions.debug)
+    val logger = LoggerFactory.getLogger("io.github.eyuppastirmaci.dioptra.App")
+
     try {
-
-        // Boots the application by wiring dependencies and starting the main flow.
-        ApplicationBootstrap().start()
-
+        logger.info("Starting Dioptra.")
+        ApplicationBootstrap().start(cliOptions)
+        logger.info("Dioptra stopped.")
     } catch (exception: Exception) {
-        System.err.println("Dioptra failed to start.")
-        System.err.println("Reason: ${exception.message}")
-        exception.printStackTrace()
+        logger.error("Dioptra failed to start.", exception)
+        exitProcess(1)
+    }
+}
+
+private fun configureLogging(debug: Boolean) {
+    if (debug) {
+        System.setProperty("DIOPTRA_LOG_LEVEL", "DEBUG")
     }
 }

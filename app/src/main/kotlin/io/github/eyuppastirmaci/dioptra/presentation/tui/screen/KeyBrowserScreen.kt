@@ -4,6 +4,7 @@ import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysRequest
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
+import io.github.eyuppastirmaci.dioptra.concurrency.DioptraCoroutineExceptionHandler
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyBrowserPage
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyMemoryUsage
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeySummary
@@ -11,6 +12,7 @@ import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyTtlStatus
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiContext
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiRect
+import io.github.eyuppastirmaci.dioptra.presentation.tui.error.UserFacingErrorMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,14 +20,27 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 class KeyBrowserScreen(
     private val browseKeysUseCase: BrowseKeysUseCase,
     private val pattern: String = DEFAULT_PATTERN,
     private val count: Long = DEFAULT_COUNT,
+    private val back: (() -> TuiScreen)? = null,
 ) : TuiScreen {
 
-    private val screenScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val logger = LoggerFactory.getLogger(KeyBrowserScreen::class.java)
+    private val screenScope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.Default +
+            DioptraCoroutineExceptionHandler.create(
+                logger = logger,
+                contextName = "KeyBrowserScreen",
+                onError = { exception ->
+                    state = KeyBrowserState.Error(UserFacingErrorMessage.from(exception))
+                },
+            ),
+    )
 
     private var loadingJob: Job? = null
 
@@ -85,6 +100,12 @@ class KeyBrowserScreen(
             isEscapeKey(keyStroke) && isLoading() -> {
                 cancelLoading()
                 TuiScreenResult.Continue
+            }
+
+            isBackKey(keyStroke) && back != null -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = back.invoke(),
+                )
             }
 
             isExitKey(keyStroke) -> {
@@ -357,6 +378,8 @@ class KeyBrowserScreen(
     ) {
         val footerText = if (isLoading()) {
             "ESC: cancel scan   q: exit"
+        } else if (back != null) {
+            "n: next page   r: refresh   b/ESC: dashboard   q: exit"
         } else {
             "n: next page   r: refresh   q/ESC: exit"
         }
@@ -399,8 +422,9 @@ class KeyBrowserScreen(
             } catch (exception: CancellationException) {
                 state = KeyBrowserState.Cancelled(cursor)
             } catch (exception: Exception) {
+                logger.error("Failed to browse Redis keys from cursor {}.", cursor, exception)
                 state = KeyBrowserState.Error(
-                    message = exception.message ?: exception::class.simpleName ?: "unknown error",
+                    message = UserFacingErrorMessage.from(exception),
                 )
             }
         }
@@ -450,9 +474,11 @@ class KeyBrowserScreen(
     }
 
     private fun isExitKey(keyStroke: KeyStroke): Boolean {
-        return keyStroke.keyType == KeyType.EOF ||
-                isCharacter(keyStroke, 'q') ||
-                isEscapeKey(keyStroke)
+        return keyStroke.keyType == KeyType.EOF || isCharacter(keyStroke, 'q')
+    }
+
+    private fun isBackKey(keyStroke: KeyStroke): Boolean {
+        return isEscapeKey(keyStroke) || isCharacter(keyStroke, 'b')
     }
 
     private fun isEscapeKey(keyStroke: KeyStroke): Boolean {

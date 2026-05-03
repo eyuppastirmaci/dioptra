@@ -12,6 +12,7 @@ import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiRect
 class DashboardScreen(
     private val snapshot: RedisDashboardSnapshot,
     private val browseKeysUseCase: BrowseKeysUseCase,
+    private val disconnect: (() -> TuiScreen)? = null,
 ) : TuiScreen {
 
     /**
@@ -32,7 +33,14 @@ class DashboardScreen(
                 TuiScreenResult.Navigate(
                     nextScreen = KeyBrowserScreen(
                         browseKeysUseCase = browseKeysUseCase,
+                        back = { this },
                     )
+                )
+            }
+
+            isCharacter(keyStroke, 'd') && disconnect != null -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = disconnect.invoke(),
                 )
             }
 
@@ -134,10 +142,18 @@ class DashboardScreen(
         context.putText(
             column = panelRect.left + 3,
             row = panelRect.top + 15,
-            text = "k: key browser   q/ESC: exit",
+            text = footerText(),
             foregroundColor = context.theme.hint,
             backgroundColor = context.theme.panel,
         )
+    }
+
+    private fun footerText(): String {
+        return if (disconnect == null) {
+            "k: key browser   q/ESC: exit"
+        } else {
+            "k: key browser   d: disconnect   q/ESC: exit"
+        }
     }
 
     private fun isExitKey(keyStroke: KeyStroke): Boolean {

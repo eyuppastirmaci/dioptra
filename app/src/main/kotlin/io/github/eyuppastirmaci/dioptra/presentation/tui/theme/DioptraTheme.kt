@@ -17,14 +17,14 @@ data class DioptraTheme(
 
         fun dark(): DioptraTheme {
             return DioptraTheme(
-                background = color("#0B1020"),
-                panel = color("#111827"),
-                border = color("#38BDF8"),
-                title = color("#E0F2FE"),
-                label = color("#94A3B8"),
-                value = color("#F8FAFC"),
-                success = color("#22C55E"),
-                hint = color("#64748B"),
+                background = color("#070A12"),
+                panel = color("#101624"),
+                border = color("#5DA9C9"),
+                title = color("#E6EEF7"),
+                label = color("#8FA1B7"),
+                value = color("#DCE7F3"),
+                success = color("#4ADE80"),
+                hint = color("#6F7F95"),
             )
         }
 
