@@ -1,0 +1,45 @@
+### Gradle ###
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Kotlin ###
+.kotlin/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+**/out/
+
+### VS Code ###
+.vscode/
+
+### Eclipse ###
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
