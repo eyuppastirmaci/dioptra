@@ -18,5 +18,7 @@ sealed interface RedisDecodedValue {
     data class Binary(
         val hexPreview: String,
         val sizeBytes: Int,
+        val hexDumpLines: List<String>,
+        val hexDumpSampleBytes: Int,
     ) : RedisDecodedValue
 }

@@ -16,6 +16,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
     implementation("com.typesafe:config:1.4.3")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("ch.qos.logback:logback-classic:1.5.32")

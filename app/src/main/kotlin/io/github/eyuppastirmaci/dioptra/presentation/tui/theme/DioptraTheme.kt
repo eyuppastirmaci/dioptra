@@ -10,6 +10,7 @@ data class DioptraTheme(
     val label: TextColor,
     val value: TextColor,
     val success: TextColor,
+    val warning: TextColor,
     val hint: TextColor,
 ) {
 
@@ -24,6 +25,7 @@ data class DioptraTheme(
                 label = color("#8FA1B7"),
                 value = color("#DCE7F3"),
                 success = color("#4ADE80"),
+                warning = color("#FBBF24"),
                 hint = color("#6F7F95"),
             )
         }

@@ -5,6 +5,9 @@ import io.lettuce.core.RedisClient
 import io.lettuce.core.RedisURI
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands
+import io.lettuce.core.codec.ByteArrayCodec
+import io.lettuce.core.codec.RedisCodec
+import io.lettuce.core.codec.StringCodec
 import java.time.Duration
 
 class LettuceRedisClientFactory(
@@ -17,9 +20,24 @@ class LettuceRedisClientFactory(
         return client.connect()
     }
 
+    fun connectBinaryValues(): StatefulRedisConnection<String, ByteArray> {
+        return client.connect(
+            RedisCodec.of(
+                StringCodec.UTF8,
+                ByteArrayCodec.INSTANCE,
+            )
+        )
+    }
+
     fun syncCommands(
         connection: StatefulRedisConnection<String, String>,
     ): RedisCommands<String, String> {
+        return connection.sync()
+    }
+
+    fun syncBinaryValueCommands(
+        connection: StatefulRedisConnection<String, ByteArray>,
+    ): RedisCommands<String, ByteArray> {
         return connection.sync()
     }
 

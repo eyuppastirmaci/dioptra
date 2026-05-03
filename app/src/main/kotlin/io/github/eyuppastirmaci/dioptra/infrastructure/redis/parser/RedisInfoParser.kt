@@ -43,4 +43,8 @@ data class RedisInfo(
     fun long(key: String): Long? {
         return values[key]?.toLongOrNull()
     }
+
+    fun double(key: String): Double? {
+        return values[key]?.toDoubleOrNull()
+    }
 }

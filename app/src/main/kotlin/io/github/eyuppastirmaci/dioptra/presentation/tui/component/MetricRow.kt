@@ -12,12 +12,13 @@ object MetricRow {
         value: String,
         labelColumn: Int = 7,
         valueColumn: Int = 30,
+        labelWidth: Int = 20,
         valueForegroundColor: TextColor = context.theme.value,
     ) {
         context.putText(
             column = labelColumn,
             row = row,
-            text = label.padEnd(20),
+            text = label.padEnd(labelWidth),
             foregroundColor = context.theme.label,
             backgroundColor = context.theme.panel,
         )

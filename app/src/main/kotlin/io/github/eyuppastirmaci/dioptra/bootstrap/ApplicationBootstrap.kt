@@ -2,6 +2,7 @@ package io.github.eyuppastirmaci.dioptra.bootstrap
 
 import io.github.eyuppastirmaci.dioptra.application.dashboard.LoadDashboardUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
 import io.github.eyuppastirmaci.dioptra.cli.CliOptions
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolution
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolver
@@ -13,9 +14,11 @@ import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisConnectionMana
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisHealthClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisInfoClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyBrowserClient
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyDetailClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisMemoryUsageMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTtlMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTypeMapper
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.codec.Utf8ValueDecoder
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisInfoParser
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisKeyspaceParser
 import io.github.eyuppastirmaci.dioptra.presentation.tui.TuiApplication
@@ -122,10 +125,12 @@ class ApplicationBootstrap {
 
     private fun createDashboardScreen(redisConnectionManager: RedisConnectionManager): DashboardScreen {
         val redisCommands = redisConnectionManager.syncCommands()
+        val redisBinaryValueCommands = redisConnectionManager.syncBinaryValueCommands()
 
         val redisHealthClient = RedisHealthClient(redisCommands)
         val redisInfoClient = RedisInfoClient(redisCommands)
         val redisKeyBrowserClient = RedisKeyBrowserClient(redisCommands)
+        val redisKeyDetailClient = RedisKeyDetailClient(redisBinaryValueCommands)
 
         val redisInfoParser = RedisInfoParser()
         val redisKeyspaceParser = RedisKeyspaceParser()
@@ -133,8 +138,10 @@ class ApplicationBootstrap {
         val redisTypeMapper = RedisTypeMapper()
         val redisTtlMapper = RedisTtlMapper()
         val redisMemoryUsageMapper = RedisMemoryUsageMapper()
+        val redisValueDecoder = Utf8ValueDecoder()
 
         val loadDashboardUseCase = LoadDashboardUseCase(
+            connectionConfig = redisConnectionManager.config,
             redisHealthClient = redisHealthClient,
             redisInfoClient = redisInfoClient,
             redisInfoParser = redisInfoParser,
@@ -148,9 +155,15 @@ class ApplicationBootstrap {
             redisMemoryUsageMapper = redisMemoryUsageMapper,
         )
 
+        val loadKeyDetailUseCase = LoadKeyDetailUseCase(
+            redisKeyDetailClient = redisKeyDetailClient,
+            redisValueDecoder = redisValueDecoder,
+        )
+
         return DashboardScreen(
             snapshot = loadDashboardUseCase.load(),
             browseKeysUseCase = browseKeysUseCase,
+            loadKeyDetailUseCase = loadKeyDetailUseCase,
             disconnect = {
                 redisConnectionManager.close()
                 activeConnectionManagers.remove(redisConnectionManager)

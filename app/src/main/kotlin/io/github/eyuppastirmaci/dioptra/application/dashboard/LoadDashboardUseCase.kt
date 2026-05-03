@@ -1,12 +1,15 @@
 package io.github.eyuppastirmaci.dioptra.application.dashboard
 
+import io.github.eyuppastirmaci.dioptra.config.RedisConnectionConfig
 import io.github.eyuppastirmaci.dioptra.domain.dashboard.RedisDashboardSnapshot
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisHealthClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisInfoClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisInfoParser
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisKeyspaceParser
+import java.util.Locale
 
 class LoadDashboardUseCase(
+    private val connectionConfig: RedisConnectionConfig,
     private val redisHealthClient: RedisHealthClient,
     private val redisInfoClient: RedisInfoClient,
     private val redisInfoParser: RedisInfoParser,
@@ -34,18 +37,104 @@ class LoadDashboardUseCase(
 
         return RedisDashboardSnapshot(
             status = if (pingResponse == PONG_RESPONSE) "Connected" else "Unknown",
-            redisVersion = info.string("redis_version") ?: "unknown",
+            activeConnectionName = formatConnectionName(connectionConfig.name),
+            selectedDatabase = connectionConfig.database,
+            redisVersion = formatServerVersion(info.string("redis_version")),
+            uptime = formatUptime(info.long("uptime_in_seconds")),
             usedMemoryHuman = info.string("used_memory_human") ?: "unknown",
+            memoryFragmentationHint = formatMemoryFragmentationHint(info.double("mem_fragmentation_ratio")),
+            memoryFragmentationHealthy = isMemoryFragmentationHealthy(info.double("mem_fragmentation_ratio")),
             connectedClients = info.int("connected_clients") ?: 0,
+            connectedClientsWarning = formatConnectedClientsWarning(info.int("connected_clients") ?: 0),
+            connectedClientsHealthy = isConnectedClientsHealthy(info.int("connected_clients") ?: 0),
+            blockedClients = info.int("blocked_clients") ?: 0,
+            instantaneousOpsPerSecond = info.int("instantaneous_ops_per_sec") ?: 0,
             totalCommandsProcessed = info.long("total_commands_processed") ?: 0L,
             keyspaceHits = info.long("keyspace_hits") ?: 0L,
             keyspaceMisses = info.long("keyspace_misses") ?: 0L,
             totalKeys = keyspaceInfo.keys,
+            maxmemoryPolicy = formatMaxmemoryPolicy(info.string("maxmemory_policy")),
+            evictedKeys = info.long("evicted_keys") ?: 0L,
         )
+    }
+
+    private fun formatConnectionName(name: String): String {
+        return name.trim().takeIf { it.isNotEmpty() } ?: "Unknown"
+    }
+
+    private fun formatServerVersion(redisVersion: String?): String {
+        val normalizedVersion = redisVersion
+            ?.trim()
+            ?.takeIf { version -> version.isNotEmpty() }
+
+        return if (normalizedVersion == null) {
+            "Unknown"
+        } else {
+            "Redis $normalizedVersion"
+        }
+    }
+
+    private fun formatUptime(uptimeSeconds: Long?): String {
+        val totalSeconds = uptimeSeconds ?: return "Unknown"
+        val days = totalSeconds / SECONDS_PER_DAY
+        val hours = (totalSeconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR
+        val minutes = (totalSeconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
+
+        return when {
+            days > 0 -> "${days}d ${hours}h ${minutes}m"
+            hours > 0 -> "${hours}h ${minutes}m"
+            minutes > 0 -> "${minutes}m"
+            else -> "${totalSeconds}s"
+        }
+    }
+
+    private fun formatMemoryFragmentationHint(fragmentationRatio: Double?): String {
+        return when {
+            fragmentationRatio == null -> "Unknown"
+            fragmentationRatio >= HIGH_MEMORY_FRAGMENTATION_RATIO -> "High (${formatRatio(fragmentationRatio)})"
+            fragmentationRatio < LOW_MEMORY_FRAGMENTATION_RATIO -> "Low (${formatRatio(fragmentationRatio)})"
+            else -> "OK (${formatRatio(fragmentationRatio)})"
+        }
+    }
+
+    private fun isMemoryFragmentationHealthy(fragmentationRatio: Double?): Boolean {
+        return fragmentationRatio == null ||
+            fragmentationRatio < HIGH_MEMORY_FRAGMENTATION_RATIO &&
+            fragmentationRatio >= LOW_MEMORY_FRAGMENTATION_RATIO
+    }
+
+    private fun formatConnectedClientsWarning(connectedClients: Int): String {
+        return when {
+            connectedClients >= HIGH_CONNECTED_CLIENTS -> "High"
+            connectedClients >= ELEVATED_CONNECTED_CLIENTS -> "Elevated"
+            else -> "OK"
+        }
+    }
+
+    private fun isConnectedClientsHealthy(connectedClients: Int): Boolean {
+        return connectedClients < ELEVATED_CONNECTED_CLIENTS
+    }
+
+    private fun formatMaxmemoryPolicy(maxmemoryPolicy: String?): String {
+        return maxmemoryPolicy
+            ?.trim()
+            ?.takeIf { policy -> policy.isNotEmpty() }
+            ?: "Unknown"
+    }
+
+    private fun formatRatio(value: Double): String {
+        return String.format(Locale.US, "%.2f", value)
     }
 
     private companion object {
         const val PONG_RESPONSE = "PONG"
         const val DEFAULT_DATABASE = "db0"
+        const val SECONDS_PER_MINUTE = 60L
+        const val SECONDS_PER_HOUR = 60L * SECONDS_PER_MINUTE
+        const val SECONDS_PER_DAY = 24L * SECONDS_PER_HOUR
+        const val ELEVATED_CONNECTED_CLIENTS = 100
+        const val HIGH_CONNECTED_CLIENTS = 1_000
+        const val LOW_MEMORY_FRAGMENTATION_RATIO = 0.90
+        const val HIGH_MEMORY_FRAGMENTATION_RATIO = 1.50
     }
 }

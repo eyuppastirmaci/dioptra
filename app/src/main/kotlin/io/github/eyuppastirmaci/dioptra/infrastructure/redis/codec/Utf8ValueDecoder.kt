@@ -12,9 +12,13 @@ class Utf8ValueDecoder(
      */
     override fun decode(value: ByteArray): RedisDecodedValue {
         if (binaryValueDetector.isBinary(value)) {
+            val sampleEnd = minOf(MAX_HEX_DUMP_SAMPLE_BYTES, value.size)
+            val sample = value.copyOfRange(fromIndex = 0, toIndex = sampleEnd)
             return RedisDecodedValue.Binary(
                 hexPreview = value.toHexPreview(),
                 sizeBytes = value.size,
+                hexDumpLines = HexDumpFormatter.lines(sample),
+                hexDumpSampleBytes = sample.size,
             )
         }
 
@@ -32,5 +36,9 @@ class Utf8ValueDecoder(
             .joinToString(separator = " ") { byte ->
                 byte.toUByte().toString(radix = 16).padStart(2, '0')
             }
+    }
+
+    private companion object {
+        const val MAX_HEX_DUMP_SAMPLE_BYTES = 128
     }
 }
