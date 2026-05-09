@@ -10,6 +10,9 @@ import io.github.eyuppastirmaci.dioptra.application.key.ExpireKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
 import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
 import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
+import io.github.eyuppastirmaci.dioptra.application.commandstats.LoadCommandStatsUseCase
+import io.github.eyuppastirmaci.dioptra.application.latency.LoadLatencyStatsUseCase
+import io.github.eyuppastirmaci.dioptra.application.slowlog.LoadSlowlogUseCase
 import io.github.eyuppastirmaci.dioptra.domain.dashboard.RedisDashboardSnapshot
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.MetricRow
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
@@ -26,6 +29,9 @@ class DashboardScreen(
     private val expireKeyUseCase: ExpireKeyUseCase,
     private val deleteKeyUseCase: DeleteKeyUseCase,
     private val deleteKeyValueUseCase: DeleteKeyValueUseCase,
+    private val loadSlowlogUseCase: LoadSlowlogUseCase,
+    private val loadCommandStatsUseCase: LoadCommandStatsUseCase,
+    private val loadLatencyStatsUseCase: LoadLatencyStatsUseCase,
     private val readOnly: Boolean,
     private val productionSafety: Boolean,
     private val protectedNamespaceRules: ProtectedNamespaceRules,
@@ -70,6 +76,33 @@ class DashboardScreen(
                 )
             }
 
+            isCharacter(keyStroke, 's') -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = SlowlogScreen(
+                        loadSlowlogUseCase = loadSlowlogUseCase,
+                        back = { this },
+                    )
+                )
+            }
+
+            isCharacter(keyStroke, 'c') -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = CommandStatsScreen(
+                        loadCommandStatsUseCase = loadCommandStatsUseCase,
+                        back = { this },
+                    )
+                )
+            }
+
+            isCharacter(keyStroke, 'l') -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = LatencyStatsScreen(
+                        loadLatencyStatsUseCase = loadLatencyStatsUseCase,
+                        back = { this },
+                    )
+                )
+            }
+
             isCharacter(keyStroke, 'd') && disconnect != null -> {
                 TuiScreenResult.Navigate(
                     nextScreen = disconnect.invoke(),
@@ -85,7 +118,7 @@ class DashboardScreen(
             left = 4,
             top = 2,
             width = 72,
-            height = 19,
+            height = 21,
         )
 
         Panel.draw(
@@ -227,10 +260,91 @@ class DashboardScreen(
             valueForegroundColor = if (snapshot.evictedKeys == 0L) context.theme.value else context.theme.warning,
         )
 
+        // Row 13 — persistence separator
+        context.putText(
+            column = panelRect.left + 3,
+            row = panelRect.top + 13,
+            text = "─── Persistence " + "─".repeat(50),
+            foregroundColor = context.theme.hint,
+            backgroundColor = context.theme.panel,
+        )
+
+        // Row 14 — RDB status (left) + AOF status (right)
+        val rdbLabel = if (snapshot.rdbBgsaveInProgress) "RDB saving…" else "RDB"
+        drawLeftMetric(
+            context = context,
+            row = panelRect.top + 14,
+            label = rdbLabel,
+            value = snapshot.rdbStatus,
+            valueForegroundColor = if (snapshot.rdbStatusHealthy) context.theme.value else context.theme.danger,
+        )
+        val aofValue = snapshot.aofStatus
+        val aofColor = when {
+            !snapshot.aofEnabled -> context.theme.hint
+            snapshot.aofStatusHealthy -> context.theme.value
+            else -> context.theme.danger
+        }
+        drawRightMetric(
+            context = context,
+            row = panelRect.top + 14,
+            label = "AOF",
+            value = aofValue,
+            valueForegroundColor = aofColor,
+        )
+
+        // Row 15 — last save age (left) + unsaved changes (right)
+        drawLeftMetric(
+            context = context,
+            row = panelRect.top + 15,
+            label = "Last Save",
+            value = snapshot.rdbLastSaveAge,
+        )
+        drawRightMetric(
+            context = context,
+            row = panelRect.top + 15,
+            label = "Unsaved",
+            value = snapshot.rdbChangesSinceLastSave.toString(),
+            valueForegroundColor = if (snapshot.rdbChangesSinceLastSave == 0L) context.theme.value else context.theme.warning,
+        )
+
+        // Row 16 — replication separator
         context.putText(
             column = panelRect.left + 3,
             row = panelRect.top + 16,
-            text = footerText(),
+            text = "─── Replication " + "─".repeat(50),
+            foregroundColor = context.theme.hint,
+            backgroundColor = context.theme.panel,
+        )
+
+        // Row 17 — role (left) + replica count or link status (right)
+        drawLeftMetric(
+            context = context,
+            row = panelRect.top + 17,
+            label = "Role",
+            value = snapshot.replicationRole,
+        )
+        if (snapshot.replicationRole == "slave") {
+            val linkColor = if (snapshot.masterLinkHealthy) context.theme.value else context.theme.danger
+            drawRightMetric(
+                context = context,
+                row = panelRect.top + 17,
+                label = "Link",
+                value = snapshot.masterLinkStatus,
+                valueForegroundColor = linkColor,
+            )
+        } else {
+            drawRightMetric(
+                context = context,
+                row = panelRect.top + 17,
+                label = "Replicas",
+                value = snapshot.connectedReplicas.toString(),
+            )
+        }
+
+        context.putText(
+            column = panelRect.left + 3,
+            row = panelRect.top + panelRect.height - 2,
+            text = fitToPanelWidth(panelRect, footerText()),
             foregroundColor = context.theme.hint,
             backgroundColor = context.theme.panel,
         )
@@ -282,20 +396,25 @@ class DashboardScreen(
         }
     }
 
+    private fun fitToPanelWidth(panel: TuiRect, text: String): String {
+        val maxWidth = (panel.width - 6).coerceAtLeast(0)
+        return text.take(maxWidth)
+    }
+
     private fun footerText(): String {
         val mode = buildString {
-            if (readOnly) append("   read-only")
-            if (productionSafety) append("   production-safety")
+            if (readOnly) append("  ro")
+            if (productionSafety) append("  safe")
         }
         val protected = if (protectedNamespaceRules.count > 0) {
-            "   protected:${protectedNamespaceRules.count}"
+            "  prot:${protectedNamespaceRules.count}"
         } else {
             ""
         }
         return if (disconnect == null) {
-            "k: key browser   q/ESC: exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  q/esc:exit$mode$protected"
         } else {
-            "k: key browser   d: disconnect   q/ESC: exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  d:disc  q/esc:exit$mode$protected"
         }
     }
 

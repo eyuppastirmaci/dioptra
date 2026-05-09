@@ -37,6 +37,17 @@ class LoadDashboardUseCase(
             rawValue = info.string(selectedDatabaseKey),
         )
 
+        val rdbLastSaveTime = info.long("rdb_last_save_time") ?: 0L
+        val rdbLastBgsaveStatus = info.string("rdb_last_bgsave_status") ?: "unknown"
+        val aofEnabled = (info.int("aof_enabled") ?: 0) == 1
+        val aofLastWriteStatus = info.string("aof_last_write_status") ?: "ok"
+        val aofLastBgrewriteStatus = info.string("aof_last_bgrewrite_status") ?: "ok"
+
+        val replicationRole = info.string("role") ?: "unknown"
+        val connectedReplicas = info.int("connected_slaves") ?: 0
+        val masterLinkStatus = info.string("master_link_status") ?: "n/a"
+        val masterLastIoSecondsAgo = info.long("master_last_io_seconds_ago") ?: -1L
+
         return RedisDashboardSnapshot(
             status = if (pingResponse == PONG_RESPONSE) "Connected" else "Unknown",
             activeConnectionName = formatConnectionName(connectionConfig.name),
@@ -57,6 +68,19 @@ class LoadDashboardUseCase(
             totalKeys = keyspaceInfo.keys,
             maxmemoryPolicy = formatMaxmemoryPolicy(info.string("maxmemory_policy")),
             evictedKeys = info.long("evicted_keys") ?: 0L,
+            rdbStatus = rdbLastBgsaveStatus,
+            rdbStatusHealthy = rdbLastBgsaveStatus == "ok",
+            rdbLastSaveAge = formatSaveAge(rdbLastSaveTime),
+            rdbChangesSinceLastSave = info.long("rdb_changes_since_last_save") ?: 0L,
+            rdbBgsaveInProgress = (info.int("rdb_bgsave_in_progress") ?: 0) == 1,
+            aofEnabled = aofEnabled,
+            aofStatus = if (!aofEnabled) "disabled" else if (aofLastWriteStatus == "ok" && aofLastBgrewriteStatus == "ok") "ok" else "err",
+            aofStatusHealthy = !aofEnabled || (aofLastWriteStatus == "ok" && aofLastBgrewriteStatus == "ok"),
+            replicationRole = replicationRole,
+            connectedReplicas = connectedReplicas,
+            masterLinkStatus = masterLinkStatus,
+            masterLinkHealthy = masterLinkStatus == "up",
+            masterLastIoSecondsAgo = masterLastIoSecondsAgo,
         )
     }
 
@@ -121,6 +145,18 @@ class LoadDashboardUseCase(
             ?.trim()
             ?.takeIf { policy -> policy.isNotEmpty() }
             ?: "Unknown"
+    }
+
+    private fun formatSaveAge(epochSeconds: Long): String {
+        if (epochSeconds <= 0L) return "never"
+        val nowSeconds = System.currentTimeMillis() / 1000L
+        val ageSeconds = nowSeconds - epochSeconds
+        return when {
+            ageSeconds < 60L -> "${ageSeconds}s ago"
+            ageSeconds < SECONDS_PER_HOUR -> "${ageSeconds / SECONDS_PER_MINUTE}m ago"
+            ageSeconds < SECONDS_PER_DAY -> "${ageSeconds / SECONDS_PER_HOUR}h ago"
+            else -> "${ageSeconds / SECONDS_PER_DAY}d ago"
+        }
     }
 
     private fun formatRatio(value: Double): String {

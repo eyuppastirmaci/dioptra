@@ -1,5 +1,7 @@
 package io.github.eyuppastirmaci.dioptra.bootstrap
 
+import io.github.eyuppastirmaci.dioptra.application.commandstats.LoadCommandStatsUseCase
+import io.github.eyuppastirmaci.dioptra.application.latency.LoadLatencyStatsUseCase
 import io.github.eyuppastirmaci.dioptra.application.dashboard.LoadDashboardUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyUseCase
@@ -21,7 +23,11 @@ import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisHealthClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisInfoClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyBrowserClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyDetailClient
+import io.github.eyuppastirmaci.dioptra.application.slowlog.LoadSlowlogUseCase
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisCommandStatsClient
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisLatencyStatsClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyOperationClient
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisSlowlogClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisMemoryUsageMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTtlMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTypeMapper
@@ -195,6 +201,9 @@ class ApplicationBootstrap {
 
         val redisHealthClient = RedisHealthClient(redisCommands)
         val redisInfoClient = RedisInfoClient(redisCommands)
+        val redisSlowlogClient = RedisSlowlogClient(redisCommands)
+        val redisCommandStatsClient = RedisCommandStatsClient(redisCommands)
+        val redisLatencyStatsClient = RedisLatencyStatsClient(redisCommands)
         val redisKeyBrowserClient = RedisKeyBrowserClient(redisCommands)
         val redisKeyDetailClient = RedisKeyDetailClient(redisBinaryValueCommands)
         val redisKeyOperationClient = RedisKeyOperationClient(
@@ -240,6 +249,18 @@ class ApplicationBootstrap {
             redisKeyspaceParser = redisKeyspaceParser,
         )
 
+        val loadSlowlogUseCase = LoadSlowlogUseCase(
+            redisSlowlogClient = redisSlowlogClient,
+        )
+
+        val loadCommandStatsUseCase = LoadCommandStatsUseCase(
+            redisCommandStatsClient = redisCommandStatsClient,
+        )
+
+        val loadLatencyStatsUseCase = LoadLatencyStatsUseCase(
+            redisLatencyStatsClient = redisLatencyStatsClient,
+        )
+
         val browseKeysUseCase = BrowseKeysUseCase(
             redisKeyBrowserClient = redisKeyBrowserClient,
             redisTypeMapper = redisTypeMapper,
@@ -271,6 +292,9 @@ class ApplicationBootstrap {
             expireKeyUseCase = expireKeyUseCase,
             deleteKeyUseCase = deleteKeyUseCase,
             deleteKeyValueUseCase = deleteKeyValueUseCase,
+            loadSlowlogUseCase = loadSlowlogUseCase,
+            loadCommandStatsUseCase = loadCommandStatsUseCase,
+            loadLatencyStatsUseCase = loadLatencyStatsUseCase,
             readOnly = readOnly,
             productionSafety = productionSafety,
             protectedNamespaceRules = protectedNamespaceRules,

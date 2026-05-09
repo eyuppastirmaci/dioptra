@@ -20,4 +20,19 @@ data class RedisDashboardSnapshot(
     val totalKeys: Long,
     val maxmemoryPolicy: String,
     val evictedKeys: Long,
+    // Persistence
+    val rdbStatus: String,
+    val rdbStatusHealthy: Boolean,
+    val rdbLastSaveAge: String,
+    val rdbChangesSinceLastSave: Long,
+    val rdbBgsaveInProgress: Boolean,
+    val aofEnabled: Boolean,
+    val aofStatus: String,
+    val aofStatusHealthy: Boolean,
+    // Replication
+    val replicationRole: String,
+    val connectedReplicas: Int,
+    val masterLinkStatus: String,
+    val masterLinkHealthy: Boolean,
+    val masterLastIoSecondsAgo: Long,
 )
