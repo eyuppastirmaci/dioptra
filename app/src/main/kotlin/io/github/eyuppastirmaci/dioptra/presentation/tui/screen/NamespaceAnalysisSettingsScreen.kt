@@ -70,8 +70,8 @@ class NamespaceAnalysisSettingsScreen(
 
     override fun handleInput(keyStroke: KeyStroke): TuiScreenResult {
         return when {
-            isExitKey(keyStroke) -> TuiScreenResult.Exit
-            isBackKey(keyStroke) -> TuiScreenResult.Navigate(back())
+            keyStroke.keyType == KeyType.EOF -> TuiScreenResult.Exit
+            keyStroke.keyType == KeyType.Escape -> TuiScreenResult.Navigate(back())
             keyStroke.keyType == KeyType.ArrowUp -> {
                 activeField = activeField.previous()
                 TuiScreenResult.Continue
@@ -97,10 +97,12 @@ class NamespaceAnalysisSettingsScreen(
                 allowRepeatedDelimiters = !allowRepeatedDelimiters
                 TuiScreenResult.Continue
             }
-            keyStroke.keyType == KeyType.Character -> {
+            keyStroke.keyType == KeyType.Character && activeField.acceptsTextInput -> {
                 appendCharacter(keyStroke.character)
                 TuiScreenResult.Continue
             }
+            isBackKey(keyStroke) -> TuiScreenResult.Navigate(back())
+            isExitKey(keyStroke) -> TuiScreenResult.Exit
             else -> TuiScreenResult.Continue
         }
     }
@@ -209,6 +211,18 @@ class NamespaceAnalysisSettingsScreen(
         AllowWhitespace,
         AllowUppercase,
         AllowRepeatedDelimiters;
+
+        val acceptsTextInput: Boolean
+            get() = when (this) {
+                NamespaceDelimiters,
+                NamespaceDepth,
+                ExpectedNamespaces,
+                AllowedKeyPatterns,
+                IgnoredKeyPatterns -> true
+                AllowWhitespace,
+                AllowUppercase,
+                AllowRepeatedDelimiters -> false
+            }
 
         fun next(): SettingsField = entries[(ordinal + 1) % entries.size]
 

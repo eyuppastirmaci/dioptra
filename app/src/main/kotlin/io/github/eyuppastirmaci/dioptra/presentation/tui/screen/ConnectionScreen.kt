@@ -110,7 +110,7 @@ class ConnectionScreen(
                 showProfileList()
                 TuiScreenResult.Continue
             }
-            isExitKey(keyStroke) -> TuiScreenResult.Exit
+            keyStroke.keyType == KeyType.Escape || keyStroke.keyType == KeyType.EOF -> TuiScreenResult.Exit
             keyStroke.keyType == KeyType.ArrowUp -> {
                 activeField = activeField.previous()
                 TuiScreenResult.Continue
@@ -144,14 +144,15 @@ class ConnectionScreen(
                 allowRepeatedDelimiters = !allowRepeatedDelimiters
                 TuiScreenResult.Continue
             }
+            keyStroke.keyType == KeyType.Character && activeField.acceptsTextInput -> {
+                appendCharacter(keyStroke.character)
+                TuiScreenResult.Continue
+            }
             isCharacter(keyStroke, 't') -> {
                 testCurrentForm()
                 TuiScreenResult.Continue
             }
-            keyStroke.keyType == KeyType.Character -> {
-                appendCharacter(keyStroke.character)
-                TuiScreenResult.Continue
-            }
+            isExitKey(keyStroke) -> TuiScreenResult.Exit
             else -> TuiScreenResult.Continue
         }
     }
@@ -592,6 +593,26 @@ class ConnectionScreen(
         AllowWhitespace,
         AllowUppercase,
         AllowRepeatedDelimiters;
+
+        val acceptsTextInput: Boolean
+            get() = when (this) {
+                ProfileName,
+                Host,
+                Port,
+                Database,
+                Username,
+                Password,
+                NamespaceDelimiters,
+                NamespaceDepth,
+                ExpectedNamespaces,
+                AllowedKeyPatterns,
+                IgnoredKeyPatterns -> true
+                Tls,
+                SaveConnection,
+                AllowWhitespace,
+                AllowUppercase,
+                AllowRepeatedDelimiters -> false
+            }
 
         fun next(): ConnectionField {
             return entries[(ordinal + 1) % entries.size]

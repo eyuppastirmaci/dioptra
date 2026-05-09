@@ -154,7 +154,9 @@ class NamespaceAnalysisScreen(
     }
 
     private fun drawPanel(context: TuiContext) {
-        val panelRect = TuiRect(left = 2, top = 1, width = 76, height = 22)
+        val terminalWidth = context.screen.terminalSize.columns
+        val panelWidth = (terminalWidth - 4).coerceIn(MIN_PANEL_WIDTH, MAX_PANEL_WIDTH)
+        val panelRect = TuiRect(left = 2, top = 1, width = panelWidth, height = 22)
         Panel.draw(context = context, rect = panelRect)
 
         drawHeader(context, panelRect)
@@ -436,5 +438,7 @@ class NamespaceAnalysisScreen(
         const val COL_NO_TTL = 50
         const val COL_MEMORY = 59
         const val COL_SCORE = 67
+        const val MIN_PANEL_WIDTH = 76
+        const val MAX_PANEL_WIDTH = 118
     }
 }
