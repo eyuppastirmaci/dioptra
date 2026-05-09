@@ -1,4 +1,4 @@
-package io.github.eyuppastirmaci.dioptra.presentation.tui.format
+package io.github.eyuppastirmaci.dioptra.application.format
 
 class ByteSizeFormatter {
 
@@ -15,7 +15,12 @@ class ByteSizeFormatter {
 
         val megabytes = kilobytes / BYTES_PER_KILOBYTE
 
-        return "%.1f MB".format(megabytes)
+        if (megabytes < BYTES_PER_KILOBYTE) {
+            return "%.1f MB".format(megabytes)
+        }
+
+        val gigabytes = megabytes / BYTES_PER_KILOBYTE
+        return "%.2f GB".format(gigabytes)
     }
 
     private companion object {

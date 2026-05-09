@@ -1,5 +1,6 @@
 package io.github.eyuppastirmaci.dioptra.presentation.tui.format
 
+import io.github.eyuppastirmaci.dioptra.application.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyMemoryUsage
 
 class RedisKeyMemoryUsageFormatter(

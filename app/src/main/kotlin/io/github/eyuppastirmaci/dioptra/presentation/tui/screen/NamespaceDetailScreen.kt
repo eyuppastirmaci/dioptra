@@ -2,6 +2,7 @@ package io.github.eyuppastirmaci.dioptra.presentation.tui.screen
 
 import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
+import io.github.eyuppastirmaci.dioptra.application.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailRequest
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
 import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
@@ -13,7 +14,6 @@ import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiContext
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiRect
 import io.github.eyuppastirmaci.dioptra.presentation.tui.error.UserFacingErrorMessage
-import io.github.eyuppastirmaci.dioptra.presentation.tui.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.namespace.NamespaceDetailState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

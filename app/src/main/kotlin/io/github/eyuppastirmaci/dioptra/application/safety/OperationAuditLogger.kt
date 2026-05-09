@@ -1,5 +1,6 @@
 package io.github.eyuppastirmaci.dioptra.application.safety
 
+import io.github.eyuppastirmaci.dioptra.application.session.SessionTracker
 import org.slf4j.LoggerFactory
 
 data class OperationAuditContext(
@@ -22,6 +23,7 @@ enum class OperationAuditResult(
 
 class OperationAuditLogger(
     private val context: OperationAuditContext,
+    private val sessionTracker: SessionTracker? = null,
 ) {
     private val logger = LoggerFactory.getLogger(AUDIT_LOGGER_NAME)
 
@@ -55,6 +57,7 @@ class OperationAuditLogger(
         }
 
         logger.info(message)
+        sessionTracker?.recordOperation(action, result)
     }
 
     companion object {

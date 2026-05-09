@@ -213,6 +213,16 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 - Risk analysis screen for big keys, no-TTL keys, large collections, risky key patterns, eviction warnings, and maxmemory policy warnings
 - Top-N largest keys and top-N no-TTL keys
 - Large HASH, LIST, SET, ZSET, and STREAM detection
+- Markdown report export
+- Session summary on exit
+- Versioned analysis snapshot export
+- Snapshot diff view
+- Before/after cleanup comparison
+- Deterministic `redis-cli` command suggestions
+- Searchable command palette
+- Namespace bookmarks
+- Profile import/export
+- Team-shareable profile templates without secrets
 - Safe expire and delete actions from key detail
 - Delete confirmation and destructive operation preview
 - Read-only mode, production safety mode, protected namespace rules, safe error messages, and operation audit logging
@@ -222,16 +232,15 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 
 ### Planned Next
 
-- Markdown report export
-- Session summary on exit
-- Save analysis snapshot
-- Diff two snapshots
-- Compare before/after cleanup
-- Generate redis-cli command suggestions
-- Command palette
-- Bookmark namespaces
-- Profile import/export
-- Team-shareable profile templates without secrets
+- Unit tests for connection config and masking
+- Unit tests for HOCON profile loading and saving
+- Unit tests for connection resolver priority
+- Unit tests for Redis INFO parsing
+- Unit tests for key metadata mapping
+- Testcontainers Redis integration tests
+- Manual TUI smoke test checklist
+- Release zip/tar.gz validation
+- GraalVM native-image investigation
 
 ### Planned For Later Versions
 

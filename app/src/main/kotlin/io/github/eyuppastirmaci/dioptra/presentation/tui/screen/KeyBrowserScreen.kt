@@ -55,6 +55,8 @@ class KeyBrowserScreen(
     initialPattern: String = KeyBrowserRenderer.DEFAULT_PATTERN,
     private val count: Long = KeyBrowserRenderer.DEFAULT_COUNT,
     private val back: (() -> TuiScreen)? = null,
+    private val onKeysBrowsed: ((Int) -> Unit)? = null,
+    private val onKeyInspected: (() -> Unit)? = null,
 ) : TuiScreen {
 
     private val logger = LoggerFactory.getLogger(KeyBrowserScreen::class.java)
@@ -455,6 +457,7 @@ class KeyBrowserScreen(
     private fun openSelectedKeyDetail(): TuiScreenResult {
         val selectedKey = selectedKey() ?: return TuiScreenResult.Continue
 
+        onKeyInspected?.invoke()
         return TuiScreenResult.Navigate(
             KeyDetailScreen(
                 key = selectedKey,
@@ -488,6 +491,8 @@ class KeyBrowserScreen(
             initialPattern = pattern,
             count = count,
             back = back,
+            onKeysBrowsed = onKeysBrowsed,
+            onKeyInspected = onKeyInspected,
         )
     }
 
@@ -556,6 +561,7 @@ class KeyBrowserScreen(
                 selectedKeyIndex = 0
                 liveTtlTracker.observeAll(page.keys)
                 state = KeyBrowserState.Loaded(page)
+                onKeysBrowsed?.invoke(page.keys.size)
             } catch (exception: CancellationException) {
                 state = KeyBrowserState.Cancelled(cursor)
             } catch (exception: Exception) {

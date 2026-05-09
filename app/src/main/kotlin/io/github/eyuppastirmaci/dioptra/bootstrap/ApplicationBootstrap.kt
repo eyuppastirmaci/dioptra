@@ -1,6 +1,7 @@
 package io.github.eyuppastirmaci.dioptra.bootstrap
 
 import io.github.eyuppastirmaci.dioptra.application.commandstats.LoadCommandStatsUseCase
+import io.github.eyuppastirmaci.dioptra.application.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.application.latency.LoadLatencyStatsUseCase
 import io.github.eyuppastirmaci.dioptra.application.dashboard.LoadDashboardUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
@@ -10,20 +11,33 @@ import io.github.eyuppastirmaci.dioptra.application.key.ExpireKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceAnalysisUseCase
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceBookmarkManager
 import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceAnalysisEngine
 import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceHealthScorer
 import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceResolver
 import io.github.eyuppastirmaci.dioptra.application.namespace.SaveNamespaceAnalysisSettingsUseCase
+import io.github.eyuppastirmaci.dioptra.application.profile.ProfileImportExportUseCase
+import io.github.eyuppastirmaci.dioptra.application.profile.TeamProfileTemplateUseCase
+import io.github.eyuppastirmaci.dioptra.application.report.ExportMarkdownReportUseCase
+import io.github.eyuppastirmaci.dioptra.application.report.MarkdownReportRenderer
 import io.github.eyuppastirmaci.dioptra.application.risk.LoadRiskAnalysisUseCase
 import io.github.eyuppastirmaci.dioptra.application.risk.RiskAnalysisEngine
 import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditContext
 import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
 import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
+import io.github.eyuppastirmaci.dioptra.application.session.SessionTracker
+import io.github.eyuppastirmaci.dioptra.application.snapshot.AnalysisSnapshotDiffEngine
+import io.github.eyuppastirmaci.dioptra.application.snapshot.AnalysisSnapshotFactory
+import io.github.eyuppastirmaci.dioptra.application.snapshot.DiffAnalysisSnapshotsUseCase
+import io.github.eyuppastirmaci.dioptra.application.snapshot.SaveAnalysisSnapshotUseCase
+import io.github.eyuppastirmaci.dioptra.application.suggestion.CommandSuggestionEngine
+import io.github.eyuppastirmaci.dioptra.presentation.console.SessionSummaryPrinter
 import io.github.eyuppastirmaci.dioptra.cli.CliOptions
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolution
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolver
 import io.github.eyuppastirmaci.dioptra.config.HoconConnectionProfileStore
 import io.github.eyuppastirmaci.dioptra.config.HoconLastUsedConnectionStore
+import io.github.eyuppastirmaci.dioptra.config.HoconNamespaceBookmarkStore
 import io.github.eyuppastirmaci.dioptra.config.LastUsedConnectionMetadata
 import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.config.RedisConnectionConfig
@@ -38,15 +52,17 @@ import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisLatencyStatsCl
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyOperationClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisRiskAnalysisClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisSlowlogClient
+import io.github.eyuppastirmaci.dioptra.infrastructure.report.MarkdownReportFileWriter
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisMemoryUsageMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTtlMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTypeMapper
+import io.github.eyuppastirmaci.dioptra.infrastructure.snapshot.AnalysisSnapshotFileWriter
+import io.github.eyuppastirmaci.dioptra.infrastructure.snapshot.AnalysisSnapshotRepository
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.codec.Utf8ValueDecoder
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisInfoParser
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisKeyspaceParser
 import io.github.eyuppastirmaci.dioptra.presentation.tui.TuiApplication
 import io.github.eyuppastirmaci.dioptra.presentation.tui.error.UserFacingErrorMessage
-import io.github.eyuppastirmaci.dioptra.presentation.tui.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyBrowserSorter
 import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyMemoryUsageFormatter
 import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyRiskClassifier
@@ -65,7 +81,9 @@ class ApplicationBootstrap {
 
     private val logger = LoggerFactory.getLogger(ApplicationBootstrap::class.java)
     private val lastUsedConnectionStore = HoconLastUsedConnectionStore()
+    private val namespaceBookmarkManager = NamespaceBookmarkManager(HoconNamespaceBookmarkStore())
     private val activeConnectionManagers = mutableListOf<RedisConnectionManager>()
+    private val sessionTracker = SessionTracker()
 
     fun start(cliOptions: CliOptions = CliOptions()) {
         val terminalFactory = TerminalFactoryProvider.create()
@@ -85,6 +103,7 @@ class ApplicationBootstrap {
         } finally {
             activeConnectionManagers.forEach { it.close() }
             activeConnectionManagers.clear()
+            SessionSummaryPrinter().print(sessionTracker.snapshot())
         }
     }
 
@@ -175,6 +194,13 @@ class ApplicationBootstrap {
             activeRedisConnectionManager.connect()
             activeConnectionManagers.add(activeRedisConnectionManager)
             saveLastUsedConnection(config)
+            sessionTracker.setConnectionInfo(
+                profileName = config.name,
+                maskedUri = config.maskedUri,
+                database = config.database,
+                readOnly = readOnly,
+                productionSafety = productionSafety,
+            )
 
             ConnectionAttemptResult.Success(
                 nextScreen = createDashboardScreen(
@@ -232,13 +258,34 @@ class ApplicationBootstrap {
         val redisTtlMapper = RedisTtlMapper()
         val redisMemoryUsageMapper = RedisMemoryUsageMapper()
         val redisValueDecoder = Utf8ValueDecoder()
+        val byteSizeFormatter = ByteSizeFormatter()
+        val commandSuggestionEngine = CommandSuggestionEngine(
+            byteSizeFormatter = byteSizeFormatter,
+        )
+        val markdownReportRenderer = MarkdownReportRenderer(
+            byteSizeFormatter = byteSizeFormatter,
+        )
+        val markdownReportFileWriter = MarkdownReportFileWriter()
+        val analysisSnapshotFactory = AnalysisSnapshotFactory()
+        val analysisSnapshotFileWriter = AnalysisSnapshotFileWriter()
+        val analysisSnapshotRepository = AnalysisSnapshotRepository()
+        val profileImportExportUseCase = ProfileImportExportUseCase()
+        val teamProfileTemplateUseCase = TeamProfileTemplateUseCase(
+            activeConnectionConfig = redisConnectionManager.config,
+        )
+        val diffAnalysisSnapshotsUseCase = DiffAnalysisSnapshotsUseCase(
+            repository = analysisSnapshotRepository,
+            diffEngine = AnalysisSnapshotDiffEngine(
+                byteSizeFormatter = byteSizeFormatter,
+            ),
+        )
         val keyBrowserSorter = RedisKeyBrowserSorter()
         val keyRiskClassifier = RedisKeyRiskClassifier()
         val keyBrowserRenderer = KeyBrowserRenderer(
             sorter = keyBrowserSorter,
             ttlFormatter = RedisKeyTtlFormatter(),
             memoryUsageFormatter = RedisKeyMemoryUsageFormatter(
-                byteSizeFormatter = ByteSizeFormatter(),
+                byteSizeFormatter = byteSizeFormatter,
                 riskClassifier = keyRiskClassifier,
             ),
             riskClassifier = keyRiskClassifier,
@@ -246,13 +293,14 @@ class ApplicationBootstrap {
         )
         val keyMatcher = TuiKeyMatcher()
         val operationAuditLogger = OperationAuditLogger(
-            OperationAuditContext(
+            context = OperationAuditContext(
                 profileName = redisConnectionManager.config.name,
                 database = redisConnectionManager.config.database,
                 maskedUri = redisConnectionManager.config.maskedUri,
                 readOnly = readOnly,
                 productionSafety = productionSafety,
-            )
+            ),
+            sessionTracker = sessionTracker,
         )
 
         val loadDashboardUseCase = LoadDashboardUseCase(
@@ -305,6 +353,32 @@ class ApplicationBootstrap {
                 riskAnalysisSettings = riskAnalysisSettings,
             )
         )
+        val markdownReportExportUseCaseFactory = { settings: NamespaceAnalysisSettings ->
+            val (loadNamespaceAnalysisUseCase, _) = namespaceAnalysisUseCaseFactory(settings)
+            ExportMarkdownReportUseCase(
+                loadNamespaceAnalysisUseCase = loadNamespaceAnalysisUseCase,
+                loadRiskAnalysisUseCase = loadRiskAnalysisUseCase,
+                loadSlowlogUseCase = loadSlowlogUseCase,
+                loadCommandStatsUseCase = loadCommandStatsUseCase,
+                loadLatencyStatsUseCase = loadLatencyStatsUseCase,
+                commandSuggestionEngine = commandSuggestionEngine,
+                renderer = markdownReportRenderer,
+                writer = markdownReportFileWriter,
+            )
+        }
+        val analysisSnapshotSaveUseCaseFactory = { settings: NamespaceAnalysisSettings ->
+            val (loadNamespaceAnalysisUseCase, _) = namespaceAnalysisUseCaseFactory(settings)
+            SaveAnalysisSnapshotUseCase(
+                loadNamespaceAnalysisUseCase = loadNamespaceAnalysisUseCase,
+                loadRiskAnalysisUseCase = loadRiskAnalysisUseCase,
+                loadSlowlogUseCase = loadSlowlogUseCase,
+                loadCommandStatsUseCase = loadCommandStatsUseCase,
+                loadLatencyStatsUseCase = loadLatencyStatsUseCase,
+                commandSuggestionEngine = commandSuggestionEngine,
+                snapshotFactory = analysisSnapshotFactory,
+                writer = analysisSnapshotFileWriter,
+            )
+        }
         val saveNamespaceAnalysisSettingsUseCase = SaveNamespaceAnalysisSettingsUseCase(
             profileStore = HoconConnectionProfileStore(),
             connectionConfig = redisConnectionManager.config,
@@ -355,6 +429,14 @@ class ApplicationBootstrap {
             keyBrowserRenderer = keyBrowserRenderer,
             keyBrowserSorter = keyBrowserSorter,
             keyMatcher = keyMatcher,
+            sessionTracker = sessionTracker,
+            commandSuggestionEngine = commandSuggestionEngine,
+            markdownReportExportUseCaseFactory = markdownReportExportUseCaseFactory,
+            analysisSnapshotSaveUseCaseFactory = analysisSnapshotSaveUseCaseFactory,
+            diffAnalysisSnapshotsUseCase = diffAnalysisSnapshotsUseCase,
+            namespaceBookmarkManager = namespaceBookmarkManager,
+            profileImportExportUseCase = profileImportExportUseCase,
+            teamProfileTemplateUseCase = teamProfileTemplateUseCase,
             disconnect = {
                 redisConnectionManager.close()
                 activeConnectionManagers.remove(redisConnectionManager)

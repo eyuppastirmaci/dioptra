@@ -2,8 +2,10 @@ package io.github.eyuppastirmaci.dioptra.presentation.tui.screen
 
 import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
+import io.github.eyuppastirmaci.dioptra.application.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceAnalysisUseCase
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceBookmarkManager
 import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.concurrency.DioptraCoroutineExceptionHandler
 import io.github.eyuppastirmaci.dioptra.domain.namespace.NamespaceHealthLevel
@@ -13,7 +15,6 @@ import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiContext
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiRect
 import io.github.eyuppastirmaci.dioptra.presentation.tui.error.UserFacingErrorMessage
-import io.github.eyuppastirmaci.dioptra.presentation.tui.format.ByteSizeFormatter
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.namespace.NamespaceAnalysisSortMode
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.namespace.NamespaceAnalysisState
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +30,8 @@ class NamespaceAnalysisScreen(
     private val loadNamespaceDetailUseCase: LoadNamespaceDetailUseCase,
     private val namespaceAnalysisSettings: NamespaceAnalysisSettings,
     private val openSettings: (() -> TuiScreen)? = null,
+    private val profileName: String = "",
+    private val bookmarkManager: NamespaceBookmarkManager? = null,
     private val back: () -> TuiScreen,
 ) : TuiScreen {
 
@@ -47,6 +50,8 @@ class NamespaceAnalysisScreen(
     )
 
     private var loadJob: Job? = null
+    private var bookmarkedNamespaces: Set<String> = bookmarkManager?.load(profileName).orEmpty()
+    private var bookmarkMessage: String? = null
 
     @Volatile
     private var state: NamespaceAnalysisState = NamespaceAnalysisState.Loading
@@ -78,6 +83,11 @@ class NamespaceAnalysisScreen(
 
             isCharacter(keyStroke, 'a') && openSettings != null -> {
                 TuiScreenResult.Navigate(openSettings.invoke())
+            }
+
+            isCharacter(keyStroke, 'b') -> {
+                toggleSelectedBookmark()
+                TuiScreenResult.Continue
             }
 
             keyStroke.keyType == KeyType.ArrowDown || isCharacter(keyStroke, 'j') -> {
@@ -113,8 +123,27 @@ class NamespaceAnalysisScreen(
 
     private fun load() {
         loadJob?.cancel()
+        bookmarkMessage = null
         loadJob = screenScope.launch(Dispatchers.IO) {
+            bookmarkedNamespaces = bookmarkManager?.load(profileName).orEmpty()
             state = NamespaceAnalysisState.Loaded(snapshot = loadNamespaceAnalysisUseCase.load())
+        }
+    }
+
+    private fun toggleSelectedBookmark() {
+        val manager = bookmarkManager ?: return
+        val loaded = state as? NamespaceAnalysisState.Loaded ?: return
+        val selectedSummary = loaded.selectedSummary ?: return
+        val namespaceName = selectedSummary.identity.normalizedName
+        val result = manager.toggle(
+            profileName = profileName,
+            namespaceName = namespaceName,
+        )
+        bookmarkedNamespaces = result.bookmarks
+        bookmarkMessage = if (result.added) {
+            "Bookmarked namespace: $namespaceName"
+        } else {
+            "Removed bookmark: $namespaceName"
         }
     }
 
@@ -269,7 +298,7 @@ class NamespaceAnalysisScreen(
             val namespaceColor = if (isSelected) context.theme.panel else namespaceColor(context, summary)
 
             context.putText(panel.left + COL_RANK, row, (absoluteIndex + 1).toString().padEnd(3), fg, bg)
-            context.putText(panel.left + COL_NAMESPACE, row, fit(summary.identity.displayName, COL_KEYS - COL_NAMESPACE - 1).padEnd(COL_KEYS - COL_NAMESPACE), namespaceColor, bg)
+            context.putText(panel.left + COL_NAMESPACE, row, fit(formatNamespaceName(summary), COL_KEYS - COL_NAMESPACE - 1).padEnd(COL_KEYS - COL_NAMESPACE), namespaceColor, bg)
             context.putText(panel.left + COL_KEYS, row, summary.keyCount.toString().padStart(COL_TTL - COL_KEYS - 1), fg, bg)
             context.putText(panel.left + COL_TTL, row, formatPercent(summary.ttlCoverage.coveragePercent).padStart(COL_NO_TTL - COL_TTL - 1), fg, bg)
             context.putText(panel.left + COL_NO_TTL, row, summary.noTtlKeyCount.toString().padStart(COL_MEMORY - COL_NO_TTL - 1), fg, bg)
@@ -313,7 +342,7 @@ class NamespaceAnalysisScreen(
             column = panel.left + 3,
             row = panel.top + DETAIL_FIRST_ROW,
             text = fit(
-                "Selected: ${summary.identity.displayName}   avg ttl: $avgTtl   mem: $memory",
+                "Selected: ${formatNamespaceName(summary)}   avg ttl: $avgTtl   mem: $memory",
                 panel.width - 6,
             ),
             foregroundColor = context.theme.value,
@@ -329,6 +358,18 @@ class NamespaceAnalysisScreen(
             foregroundColor = healthColor(context, summary.health.level),
             backgroundColor = context.theme.panel,
         )
+        val message = bookmarkMessage
+        if (message != null) {
+            context.putText(
+                column = panel.left + 3,
+                row = panel.top + DETAIL_THIRD_ROW,
+                text = fit(message, panel.width - 6),
+                foregroundColor = context.theme.success,
+                backgroundColor = context.theme.panel,
+            )
+            return
+        }
+
         context.putText(
             column = panel.left + 3,
             row = panel.top + DETAIL_THIRD_ROW,
@@ -345,10 +386,15 @@ class NamespaceAnalysisScreen(
         context.putText(
             column = panel.left + 3,
             row = panel.top + panel.height - 2,
-            text = fit("j/k:move  enter:detail  s:sort  a:aset  r:refresh  b/esc:back  q:exit", panel.width - 6),
+            text = fit("j/k:move enter:detail b:mark s:sort a:aset r:refresh esc:back q:exit", panel.width - 6),
             foregroundColor = context.theme.hint,
             backgroundColor = context.theme.panel,
         )
+    }
+
+    private fun formatNamespaceName(summary: NamespaceSummary): String {
+        val marker = if (summary.identity.normalizedName in bookmarkedNamespaces) "* " else ""
+        return marker + summary.identity.displayName
     }
 
     private fun namespaceColor(context: TuiContext, summary: NamespaceSummary) = when {
@@ -416,7 +462,7 @@ class NamespaceAnalysisScreen(
     }
 
     private fun isBackKey(keyStroke: KeyStroke): Boolean {
-        return keyStroke.keyType == KeyType.Escape || isCharacter(keyStroke, 'b')
+        return keyStroke.keyType == KeyType.Escape
     }
 
     private fun isCharacter(keyStroke: KeyStroke, expected: Char): Boolean {
