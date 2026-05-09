@@ -23,10 +23,18 @@ import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisInfoPar
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.parser.RedisKeyspaceParser
 import io.github.eyuppastirmaci.dioptra.presentation.tui.TuiApplication
 import io.github.eyuppastirmaci.dioptra.presentation.tui.error.UserFacingErrorMessage
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.ByteSizeFormatter
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyBrowserSorter
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyMemoryUsageFormatter
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyRiskClassifier
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyTtlFormatter
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.TextTruncator
+import io.github.eyuppastirmaci.dioptra.presentation.tui.input.TuiKeyMatcher
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.ConnectionAttemptResult
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.ConnectionScreen
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.DashboardScreen
 import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.TuiScreen
+import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.keybrowser.KeyBrowserRenderer
 import io.github.eyuppastirmaci.dioptra.presentation.tui.terminal.TerminalFactoryProvider
 import org.slf4j.LoggerFactory
 
@@ -139,6 +147,19 @@ class ApplicationBootstrap {
         val redisTtlMapper = RedisTtlMapper()
         val redisMemoryUsageMapper = RedisMemoryUsageMapper()
         val redisValueDecoder = Utf8ValueDecoder()
+        val keyBrowserSorter = RedisKeyBrowserSorter()
+        val keyRiskClassifier = RedisKeyRiskClassifier()
+        val keyBrowserRenderer = KeyBrowserRenderer(
+            sorter = keyBrowserSorter,
+            ttlFormatter = RedisKeyTtlFormatter(),
+            memoryUsageFormatter = RedisKeyMemoryUsageFormatter(
+                byteSizeFormatter = ByteSizeFormatter(),
+                riskClassifier = keyRiskClassifier,
+            ),
+            riskClassifier = keyRiskClassifier,
+            textTruncator = TextTruncator(),
+        )
+        val keyMatcher = TuiKeyMatcher()
 
         val loadDashboardUseCase = LoadDashboardUseCase(
             connectionConfig = redisConnectionManager.config,
@@ -164,6 +185,9 @@ class ApplicationBootstrap {
             snapshot = loadDashboardUseCase.load(),
             browseKeysUseCase = browseKeysUseCase,
             loadKeyDetailUseCase = loadKeyDetailUseCase,
+            keyBrowserRenderer = keyBrowserRenderer,
+            keyBrowserSorter = keyBrowserSorter,
+            keyMatcher = keyMatcher,
             disconnect = {
                 redisConnectionManager.close()
                 activeConnectionManagers.remove(redisConnectionManager)

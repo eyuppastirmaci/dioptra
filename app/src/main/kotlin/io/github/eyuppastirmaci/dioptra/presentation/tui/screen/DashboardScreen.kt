@@ -10,11 +10,17 @@ import io.github.eyuppastirmaci.dioptra.presentation.tui.component.MetricRow
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiContext
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiRect
+import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeyBrowserSorter
+import io.github.eyuppastirmaci.dioptra.presentation.tui.input.TuiKeyMatcher
+import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.keybrowser.KeyBrowserRenderer
 
 class DashboardScreen(
     private val snapshot: RedisDashboardSnapshot,
     private val browseKeysUseCase: BrowseKeysUseCase,
     private val loadKeyDetailUseCase: LoadKeyDetailUseCase,
+    private val keyBrowserRenderer: KeyBrowserRenderer,
+    private val keyBrowserSorter: RedisKeyBrowserSorter,
+    private val keyMatcher: TuiKeyMatcher,
     private val disconnect: (() -> TuiScreen)? = null,
 ) : TuiScreen {
 
@@ -37,6 +43,9 @@ class DashboardScreen(
                     nextScreen = KeyBrowserScreen(
                         browseKeysUseCase = browseKeysUseCase,
                         loadKeyDetailUseCase = loadKeyDetailUseCase,
+                        renderer = keyBrowserRenderer,
+                        sorter = keyBrowserSorter,
+                        keyMatcher = keyMatcher,
                         back = { this },
                     )
                 )

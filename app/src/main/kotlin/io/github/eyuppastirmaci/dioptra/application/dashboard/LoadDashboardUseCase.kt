@@ -29,10 +29,12 @@ class LoadDashboardUseCase(
         // Converts raw Redis INFO output into a structured key-value representation.
         val info = redisInfoParser.parse(rawInfo)
 
-        // Extracts keyspace metrics from the default Redis database.
+        val selectedDatabaseKey = "db${connectionConfig.database}"
+
+        // Extracts keyspace metrics from the selected Redis database.
         val keyspaceInfo = redisKeyspaceParser.parse(
-            database = DEFAULT_DATABASE,
-            rawValue = info.string(DEFAULT_DATABASE),
+            database = selectedDatabaseKey,
+            rawValue = info.string(selectedDatabaseKey),
         )
 
         return RedisDashboardSnapshot(
@@ -99,8 +101,7 @@ class LoadDashboardUseCase(
 
     private fun isMemoryFragmentationHealthy(fragmentationRatio: Double?): Boolean {
         return fragmentationRatio == null ||
-            fragmentationRatio < HIGH_MEMORY_FRAGMENTATION_RATIO &&
-            fragmentationRatio >= LOW_MEMORY_FRAGMENTATION_RATIO
+                fragmentationRatio in LOW_MEMORY_FRAGMENTATION_RATIO..<HIGH_MEMORY_FRAGMENTATION_RATIO
     }
 
     private fun formatConnectedClientsWarning(connectedClients: Int): String {
@@ -128,7 +129,6 @@ class LoadDashboardUseCase(
 
     private companion object {
         const val PONG_RESPONSE = "PONG"
-        const val DEFAULT_DATABASE = "db0"
         const val SECONDS_PER_MINUTE = 60L
         const val SECONDS_PER_HOUR = 60L * SECONDS_PER_MINUTE
         const val SECONDS_PER_DAY = 24L * SECONDS_PER_HOUR
