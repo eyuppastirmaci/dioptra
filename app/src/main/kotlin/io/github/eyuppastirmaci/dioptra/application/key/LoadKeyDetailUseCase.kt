@@ -75,6 +75,7 @@ class LoadKeyDetailUseCase(
         val rows = rawElements.mapIndexed { offset, bytes ->
             RedisListItemRow(
                 index = startIndex + offset,
+                rawValue = bytes,
                 valuePreview = redisValueDecoder.decode(bytes).toPreview(),
             )
         }
@@ -233,6 +234,7 @@ class LoadKeyDetailUseCase(
         val rows = rawElements.mapIndexed { index, bytes ->
             RedisListItemRow(
                 index = index.toLong(),
+                rawValue = bytes,
                 valuePreview = redisValueDecoder.decode(bytes).toPreview(),
             )
         }
@@ -289,12 +291,18 @@ class LoadKeyDetailUseCase(
         }
 
     private fun decodeSetRows(members: List<ByteArray>): List<RedisSetMemberRow> =
-        members.map { RedisSetMemberRow(valuePreview = redisValueDecoder.decode(it).toPreview()) }
+        members.map {
+            RedisSetMemberRow(
+                rawValue = it,
+                valuePreview = redisValueDecoder.decode(it).toPreview(),
+            )
+        }
 
     private fun decodeSortedSetRows(entries: List<Pair<ByteArray, Double>>): List<RedisSortedSetEntryRow> =
         entries.map { (memberBytes, score) ->
             RedisSortedSetEntryRow(
                 score = score,
+                rawMember = memberBytes,
                 memberPreview = redisValueDecoder.decode(memberBytes).toPreview(),
             )
         }

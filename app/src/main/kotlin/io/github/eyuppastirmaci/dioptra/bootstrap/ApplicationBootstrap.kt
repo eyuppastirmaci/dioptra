@@ -2,7 +2,13 @@ package io.github.eyuppastirmaci.dioptra.bootstrap
 
 import io.github.eyuppastirmaci.dioptra.application.dashboard.LoadDashboardUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyValueUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.ExpireKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditContext
+import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
+import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
 import io.github.eyuppastirmaci.dioptra.cli.CliOptions
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolution
 import io.github.eyuppastirmaci.dioptra.config.ConnectionResolver
@@ -15,6 +21,7 @@ import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisHealthClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisInfoClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyBrowserClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyDetailClient
+import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisKeyOperationClient
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisMemoryUsageMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTtlMapper
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.mapper.RedisTypeMapper
@@ -48,16 +55,29 @@ class ApplicationBootstrap {
         val terminalFactory = TerminalFactoryProvider.create()
         val tuiApplication = TuiApplication(terminalFactory)
         val resolution = ConnectionResolver().resolve(cliOptions.connection)
+        val protectedNamespaceRules = ProtectedNamespaceRules(cliOptions.protectedNamespaces)
 
         try {
-            tuiApplication.run(initialScreenFor(resolution))
+            tuiApplication.run(
+                initialScreenFor(
+                    resolution = resolution,
+                    readOnly = cliOptions.readOnly,
+                    productionSafety = cliOptions.productionSafety,
+                    protectedNamespaceRules = protectedNamespaceRules,
+                )
+            )
         } finally {
             activeConnectionManagers.forEach { it.close() }
             activeConnectionManagers.clear()
         }
     }
 
-    private fun initialScreenFor(resolution: ConnectionResolution): TuiScreen {
+    private fun initialScreenFor(
+        resolution: ConnectionResolution,
+        readOnly: Boolean,
+        productionSafety: Boolean,
+        protectedNamespaceRules: ProtectedNamespaceRules,
+    ): TuiScreen {
         return when (resolution) {
             is ConnectionResolution.Ready -> {
                 logger.info(
@@ -65,11 +85,21 @@ class ApplicationBootstrap {
                     resolution.source,
                     resolution.config.maskedUri,
                 )
-                when (val attempt = connectToDashboard(resolution.config)) {
+                when (
+                    val attempt = connectToDashboard(
+                        config = resolution.config,
+                        readOnly = readOnly,
+                        productionSafety = productionSafety,
+                        protectedNamespaceRules = protectedNamespaceRules,
+                    )
+                ) {
                     is ConnectionAttemptResult.Success -> attempt.nextScreen
                     is ConnectionAttemptResult.Failure -> connectionScreen(
                         initialConfig = resolution.config,
                         initialMessage = attempt.message,
+                        readOnly = readOnly,
+                        productionSafety = productionSafety,
+                        protectedNamespaceRules = protectedNamespaceRules,
                     )
                 }
             }
@@ -84,6 +114,9 @@ class ApplicationBootstrap {
                 connectionScreen(
                     initialConfig = fallbackConfig,
                     initialMessage = resolution.reason,
+                    readOnly = readOnly,
+                    productionSafety = productionSafety,
+                    protectedNamespaceRules = protectedNamespaceRules,
                 )
             }
         }
@@ -92,17 +125,32 @@ class ApplicationBootstrap {
     private fun connectionScreen(
         initialConfig: RedisConnectionConfig,
         initialMessage: String?,
+        readOnly: Boolean,
+        productionSafety: Boolean,
+        protectedNamespaceRules: ProtectedNamespaceRules,
     ): ConnectionScreen {
         return ConnectionScreen(
             profileStore = HoconConnectionProfileStore(),
             lastUsedConnectionStore = lastUsedConnectionStore,
             initialConfig = initialConfig,
             initialMessage = initialMessage,
-            connect = ::connectToDashboard,
+            connect = { config ->
+                connectToDashboard(
+                    config = config,
+                    readOnly = readOnly,
+                    productionSafety = productionSafety,
+                    protectedNamespaceRules = protectedNamespaceRules,
+                )
+            },
         )
     }
 
-    private fun connectToDashboard(config: RedisConnectionConfig): ConnectionAttemptResult {
+    private fun connectToDashboard(
+        config: RedisConnectionConfig,
+        readOnly: Boolean,
+        productionSafety: Boolean,
+        protectedNamespaceRules: ProtectedNamespaceRules,
+    ): ConnectionAttemptResult {
         var redisConnectionManager: RedisConnectionManager? = null
 
         return runCatching {
@@ -113,7 +161,12 @@ class ApplicationBootstrap {
             saveLastUsedConnection(config)
 
             ConnectionAttemptResult.Success(
-                nextScreen = createDashboardScreen(activeRedisConnectionManager),
+                nextScreen = createDashboardScreen(
+                    redisConnectionManager = activeRedisConnectionManager,
+                    readOnly = readOnly,
+                    productionSafety = productionSafety,
+                    protectedNamespaceRules = protectedNamespaceRules,
+                ),
                 close = {
                     activeRedisConnectionManager.close()
                     activeConnectionManagers.remove(activeRedisConnectionManager)
@@ -131,7 +184,12 @@ class ApplicationBootstrap {
         }
     }
 
-    private fun createDashboardScreen(redisConnectionManager: RedisConnectionManager): DashboardScreen {
+    private fun createDashboardScreen(
+        redisConnectionManager: RedisConnectionManager,
+        readOnly: Boolean,
+        productionSafety: Boolean,
+        protectedNamespaceRules: ProtectedNamespaceRules,
+    ): DashboardScreen {
         val redisCommands = redisConnectionManager.syncCommands()
         val redisBinaryValueCommands = redisConnectionManager.syncBinaryValueCommands()
 
@@ -139,6 +197,10 @@ class ApplicationBootstrap {
         val redisInfoClient = RedisInfoClient(redisCommands)
         val redisKeyBrowserClient = RedisKeyBrowserClient(redisCommands)
         val redisKeyDetailClient = RedisKeyDetailClient(redisBinaryValueCommands)
+        val redisKeyOperationClient = RedisKeyOperationClient(
+            commands = redisCommands,
+            binaryValueCommands = redisBinaryValueCommands,
+        )
 
         val redisInfoParser = RedisInfoParser()
         val redisKeyspaceParser = RedisKeyspaceParser()
@@ -160,6 +222,15 @@ class ApplicationBootstrap {
             textTruncator = TextTruncator(),
         )
         val keyMatcher = TuiKeyMatcher()
+        val operationAuditLogger = OperationAuditLogger(
+            OperationAuditContext(
+                profileName = redisConnectionManager.config.name,
+                database = redisConnectionManager.config.database,
+                maskedUri = redisConnectionManager.config.maskedUri,
+                readOnly = readOnly,
+                productionSafety = productionSafety,
+            )
+        )
 
         val loadDashboardUseCase = LoadDashboardUseCase(
             connectionConfig = redisConnectionManager.config,
@@ -181,10 +252,29 @@ class ApplicationBootstrap {
             redisValueDecoder = redisValueDecoder,
         )
 
+        val expireKeyUseCase = ExpireKeyUseCase(
+            redisKeyOperationClient = redisKeyOperationClient,
+        )
+
+        val deleteKeyUseCase = DeleteKeyUseCase(
+            redisKeyOperationClient = redisKeyOperationClient,
+        )
+
+        val deleteKeyValueUseCase = DeleteKeyValueUseCase(
+            redisKeyOperationClient = redisKeyOperationClient,
+        )
+
         return DashboardScreen(
             snapshot = loadDashboardUseCase.load(),
             browseKeysUseCase = browseKeysUseCase,
             loadKeyDetailUseCase = loadKeyDetailUseCase,
+            expireKeyUseCase = expireKeyUseCase,
+            deleteKeyUseCase = deleteKeyUseCase,
+            deleteKeyValueUseCase = deleteKeyValueUseCase,
+            readOnly = readOnly,
+            productionSafety = productionSafety,
+            protectedNamespaceRules = protectedNamespaceRules,
+            operationAuditLogger = operationAuditLogger,
             keyBrowserRenderer = keyBrowserRenderer,
             keyBrowserSorter = keyBrowserSorter,
             keyMatcher = keyMatcher,
@@ -194,6 +284,9 @@ class ApplicationBootstrap {
                 connectionScreen(
                     initialConfig = RedisConnectionConfig(),
                     initialMessage = "Disconnected.",
+                    readOnly = readOnly,
+                    productionSafety = productionSafety,
+                    protectedNamespaceRules = protectedNamespaceRules,
                 )
             },
         )

@@ -15,4 +15,7 @@ data class CliConnectionOptions(
 data class CliOptions(
     val connection: CliConnectionOptions = CliConnectionOptions(),
     val debug: Boolean = false,
+    val readOnly: Boolean = false,
+    val productionSafety: Boolean = false,
+    val protectedNamespaces: List<String> = emptyList(),
 )

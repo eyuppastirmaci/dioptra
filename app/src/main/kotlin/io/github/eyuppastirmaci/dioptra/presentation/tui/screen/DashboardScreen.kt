@@ -4,7 +4,12 @@ import com.googlecode.lanterna.TextColor
 import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
 import io.github.eyuppastirmaci.dioptra.application.key.BrowseKeysUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyValueUseCase
+import io.github.eyuppastirmaci.dioptra.application.key.ExpireKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
+import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
 import io.github.eyuppastirmaci.dioptra.domain.dashboard.RedisDashboardSnapshot
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.MetricRow
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
@@ -18,6 +23,13 @@ class DashboardScreen(
     private val snapshot: RedisDashboardSnapshot,
     private val browseKeysUseCase: BrowseKeysUseCase,
     private val loadKeyDetailUseCase: LoadKeyDetailUseCase,
+    private val expireKeyUseCase: ExpireKeyUseCase,
+    private val deleteKeyUseCase: DeleteKeyUseCase,
+    private val deleteKeyValueUseCase: DeleteKeyValueUseCase,
+    private val readOnly: Boolean,
+    private val productionSafety: Boolean,
+    private val protectedNamespaceRules: ProtectedNamespaceRules,
+    private val operationAuditLogger: OperationAuditLogger,
     private val keyBrowserRenderer: KeyBrowserRenderer,
     private val keyBrowserSorter: RedisKeyBrowserSorter,
     private val keyMatcher: TuiKeyMatcher,
@@ -43,6 +55,13 @@ class DashboardScreen(
                     nextScreen = KeyBrowserScreen(
                         browseKeysUseCase = browseKeysUseCase,
                         loadKeyDetailUseCase = loadKeyDetailUseCase,
+                        expireKeyUseCase = expireKeyUseCase,
+                        deleteKeyUseCase = deleteKeyUseCase,
+                        deleteKeyValueUseCase = deleteKeyValueUseCase,
+                        readOnly = readOnly,
+                        productionSafety = productionSafety,
+                        protectedNamespaceRules = protectedNamespaceRules,
+                        operationAuditLogger = operationAuditLogger,
                         renderer = keyBrowserRenderer,
                         sorter = keyBrowserSorter,
                         keyMatcher = keyMatcher,
@@ -264,10 +283,19 @@ class DashboardScreen(
     }
 
     private fun footerText(): String {
-        return if (disconnect == null) {
-            "k: key browser   q/ESC: exit"
+        val mode = buildString {
+            if (readOnly) append("   read-only")
+            if (productionSafety) append("   production-safety")
+        }
+        val protected = if (protectedNamespaceRules.count > 0) {
+            "   protected:${protectedNamespaceRules.count}"
         } else {
-            "k: key browser   d: disconnect   q/ESC: exit"
+            ""
+        }
+        return if (disconnect == null) {
+            "k: key browser   q/ESC: exit$mode$protected"
+        } else {
+            "k: key browser   d: disconnect   q/ESC: exit$mode$protected"
         }
     }
 

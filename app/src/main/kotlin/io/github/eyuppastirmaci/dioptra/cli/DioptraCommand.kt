@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.context
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 
@@ -55,6 +56,21 @@ class DioptraCommand : CliktCommand(
         help = "Enable debug logging to ~/.dioptra/logs/dioptra-debug.log.",
     ).flag(default = false)
 
+    private val readOnly: Boolean by option(
+        "--read-only",
+        help = "Disable Redis write operations such as expire and delete.",
+    ).flag(default = false)
+
+    private val productionSafety: Boolean by option(
+        "--production-safety",
+        help = "Enable extra warnings and confirmation for destructive operations.",
+    ).flag(default = false)
+
+    private val protectedNamespaces: List<String> by option(
+        "--protected-namespace",
+        help = "Protect a key namespace from write operations. Supports exact keys or prefix wildcards like session:*.",
+    ).multiple()
+
     lateinit var parsedOptions: CliOptions
         private set
 
@@ -78,6 +94,9 @@ class DioptraCommand : CliktCommand(
                 tls = tls,
             ),
             debug = debug,
+            readOnly = readOnly,
+            productionSafety = productionSafety,
+            protectedNamespaces = protectedNamespaces,
         )
     }
 }

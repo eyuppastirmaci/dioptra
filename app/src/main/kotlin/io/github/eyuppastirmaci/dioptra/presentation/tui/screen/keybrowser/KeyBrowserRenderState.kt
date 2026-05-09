@@ -1,6 +1,9 @@
 package io.github.eyuppastirmaci.dioptra.presentation.tui.screen.keybrowser
 
+import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeySummary
 import io.github.eyuppastirmaci.dioptra.presentation.tui.format.RedisKeySortMode
+import io.github.eyuppastirmaci.dioptra.presentation.tui.screen.keyoperation.KeyOperationToast
+import io.github.eyuppastirmaci.dioptra.presentation.tui.ttl.LiveTtlDisplay
 
 data class KeyBrowserRenderState(
     val state: KeyBrowserState,
@@ -12,4 +15,7 @@ data class KeyBrowserRenderState(
     val count: Long,
     val isLoading: Boolean,
     val canReturnBack: Boolean,
+    val productionSafety: Boolean,
+    val operationToast: KeyOperationToast?,
+    val liveTtlDisplay: (RedisKeySummary) -> LiveTtlDisplay,
 )

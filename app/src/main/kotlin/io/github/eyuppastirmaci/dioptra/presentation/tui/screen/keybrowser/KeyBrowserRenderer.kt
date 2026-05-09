@@ -5,6 +5,7 @@ import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyBrowserPage
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyMemoryUsage
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeySummary
 import io.github.eyuppastirmaci.dioptra.domain.key.RedisKeyTtlStatus
+import io.github.eyuppastirmaci.dioptra.presentation.tui.component.OperationToast
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.PanelText
 import io.github.eyuppastirmaci.dioptra.presentation.tui.core.TuiContext
@@ -54,6 +55,11 @@ class KeyBrowserRenderer(
         }
 
         drawFooter(context, panelRect, renderState)
+        OperationToast.draw(
+            context = context,
+            containerRect = panelRect,
+            toast = renderState.operationToast,
+        )
     }
 
     private fun drawTitle(
@@ -209,7 +215,7 @@ class KeyBrowserRenderer(
         val sortedKeys = sorter.sort(page.keys, renderState.sortMode)
 
         drawTableHeader(context)
-        drawRows(context, sortedKeys, renderState.selectedKeyIndex)
+        drawRows(context, renderState, sortedKeys, renderState.selectedKeyIndex)
 
         if (!page.hasMore) {
             drawEndOfResults(context, panelRect)
@@ -218,6 +224,7 @@ class KeyBrowserRenderer(
 
     private fun drawRows(
         context: TuiContext,
+        renderState: KeyBrowserRenderState,
         keys: List<RedisKeySummary>,
         selectedIndex: Int,
     ) {
@@ -226,14 +233,15 @@ class KeyBrowserRenderer(
             .forEachIndexed { index, key ->
                 val row = FIRST_KEY_ROW + index
                 val selected = index == selectedIndex
+                val ttlDisplay = renderState.liveTtlDisplay(key)
 
                 context.putText(
                     column = KEY_COLUMN,
                     row = row,
                     text = formatKeyName(key.name, selected).padEnd(KEY_WIDTH),
-                    foregroundColor = if (selected) context.theme.success else context.theme.value,
+                    foregroundColor = keyNameForegroundColor(context, selected, ttlDisplay.expired),
                     backgroundColor = context.theme.panel,
-                    bold = selected,
+                    bold = selected || ttlDisplay.expired,
                 )
 
                 context.putText(
@@ -248,10 +256,10 @@ class KeyBrowserRenderer(
                 context.putText(
                     column = TTL_COLUMN,
                     row = row,
-                    text = ttlFormatter.format(key.ttl).padEnd(TTL_WIDTH),
-                    foregroundColor = ttlForegroundColor(context, key.ttl, selected),
+                    text = ttlDisplay.text.padEnd(TTL_WIDTH),
+                    foregroundColor = ttlForegroundColor(context, key.ttl, selected, ttlDisplay.expired),
                     backgroundColor = context.theme.panel,
-                    bold = selected || key.ttl == RedisKeyTtlStatus.NoExpiration,
+                    bold = selected || key.ttl == RedisKeyTtlStatus.NoExpiration || ttlDisplay.expired,
                 )
 
                 context.putText(
@@ -422,6 +430,22 @@ class KeyBrowserRenderer(
                 )
             }
 
+            renderState.inputMode == KeyBrowserInputMode.DeleteConfirmation -> {
+                val text = if (renderState.productionSafety) {
+                    "p: production acknowledge   y: confirm delete   n/ESC: cancel"
+                } else {
+                    "y: confirm delete   n/ESC: cancel"
+                }
+                context.putText(
+                    column = column,
+                    row = footerBottomRow,
+                    text = truncate(text, FOOTER_TEXT_WIDTH),
+                    foregroundColor = context.theme.warning,
+                    backgroundColor = context.theme.panel,
+                    bold = true,
+                )
+            }
+
             renderState.isLoading -> {
                 context.putText(
                     column = column,
@@ -436,7 +460,7 @@ class KeyBrowserRenderer(
                 context.putText(
                     column = column,
                     row = footerTopRow,
-                    text = truncate("Enter: detail  Up/Down  / search  m/t/l/u sort  n/r", FOOTER_TEXT_WIDTH),
+                    text = truncate("Enter: detail  d: delete  Up/Down  / search  m/t/l/u sort  n/r", FOOTER_TEXT_WIDTH),
                     foregroundColor = context.theme.hint,
                     backgroundColor = context.theme.panel,
                 )
@@ -453,7 +477,7 @@ class KeyBrowserRenderer(
                 context.putText(
                     column = column,
                     row = footerTopRow,
-                    text = truncate("Enter: detail  Up/Down  / search  m/t/l/u sort  n/r", FOOTER_TEXT_WIDTH),
+                    text = truncate("Enter: detail  d: delete  Up/Down  / search  m/t/l/u sort  n/r", FOOTER_TEXT_WIDTH),
                     foregroundColor = context.theme.hint,
                     backgroundColor = context.theme.panel,
                 )
@@ -472,11 +496,25 @@ class KeyBrowserRenderer(
         context: TuiContext,
         ttl: RedisKeyTtlStatus,
         selected: Boolean,
+        expired: Boolean,
     ): TextColor {
         return when {
+            expired -> context.theme.danger
             ttl == RedisKeyTtlStatus.NoExpiration -> context.theme.warning
             selected -> context.theme.value
             else -> context.theme.label
+        }
+    }
+
+    private fun keyNameForegroundColor(
+        context: TuiContext,
+        selected: Boolean,
+        expired: Boolean,
+    ): TextColor {
+        return when {
+            expired -> context.theme.danger
+            selected -> context.theme.success
+            else -> context.theme.value
         }
     }
 
