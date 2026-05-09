@@ -16,6 +16,7 @@ fun main(args: Array<String>) {
         logger.info("Dioptra stopped.")
     } catch (exception: Exception) {
         logger.error("Dioptra failed to start.", exception)
+        System.err.println("Dioptra failed to start. See logs in ${System.getProperty("user.home")}\\.dioptra\\logs\\.")
         exitProcess(1)
     }
 }

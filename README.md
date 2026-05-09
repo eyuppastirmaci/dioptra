@@ -447,7 +447,107 @@ Exit Redis CLI:
 exit
 ```
 
-## Build
+## Install From Source
+
+Clone the repository, build the runnable Gradle distribution, and add the generated `bin` directory to your shell `PATH`.
+
+### Linux
+
+```bash
+git clone https://github.com/eyuppastirmaci/dioptra.git
+cd dioptra
+chmod +x ./gradlew
+./gradlew :app:installDist
+```
+
+Run it directly:
+
+```bash
+./app/build/install/dioptra/bin/dioptra
+```
+
+Make `dioptra` available in new Bash sessions:
+
+```bash
+echo "export PATH=\"$(pwd)/app/build/install/dioptra/bin:\$PATH\"" >> ~/.bashrc
+source ~/.bashrc
+dioptra
+```
+
+### macOS
+
+```bash
+git clone https://github.com/eyuppastirmaci/dioptra.git
+cd dioptra
+chmod +x ./gradlew
+./gradlew :app:installDist
+```
+
+Run it directly:
+
+```bash
+./app/build/install/dioptra/bin/dioptra
+```
+
+Make `dioptra` available in new Zsh sessions:
+
+```bash
+echo "export PATH=\"$(pwd)/app/build/install/dioptra/bin:\$PATH\"" >> ~/.zshrc
+source ~/.zshrc
+dioptra
+```
+
+### Windows
+
+From PowerShell or CMD, Dioptra runs through the generated Windows script. On plain Windows, Lanterna uses a Swing terminal window for the TUI.
+
+```powershell
+git clone https://github.com/eyuppastirmaci/dioptra.git
+cd dioptra
+.\gradlew.bat :app:installDist
+```
+
+Run it directly:
+
+```powershell
+.\app\build\install\dioptra\bin\dioptra.bat
+```
+
+Make `dioptra` available in new PowerShell or CMD sessions:
+
+```powershell
+$dioptraBin = (Resolve-Path .\app\build\install\dioptra\bin).Path
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+if (($userPath -split ';') -notcontains $dioptraBin) {
+  $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $dioptraBin } else { "$userPath;$dioptraBin" }
+  [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+}
+```
+
+Close and reopen the terminal, then run:
+
+```powershell
+dioptra
+```
+
+For native rendering inside a Windows Terminal Ubuntu tab, install from source inside WSL and follow the Linux commands:
+
+```bash
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/eyuppastirmaci/dioptra.git
+cd dioptra
+chmod +x ./gradlew
+./gradlew :app:installDist
+echo "export PATH=\"$(pwd)/app/build/install/dioptra/bin:\$PATH\"" >> ~/.bashrc
+source ~/.bashrc
+dioptra
+```
+
+## Build Only
+
+Use this when you only want to compile and run tests without installing the runnable distribution.
 
 ### Windows
 
@@ -461,75 +561,20 @@ exit
 ./gradlew :app:build
 ```
 
-## Run During Development
+## Development Run
 
-### Windows Development Mode
-
-On Windows, Lanterna may open a Swing-based terminal window during development. This is the most stable development mode on Windows.
-
-```powershell
-.\gradlew.bat :app:run
-```
-
-### Linux, WSL, macOS Development Mode
-
-For native terminal rendering, prefer the application distribution script instead of Gradle `run`.
+Prefer the installed distribution for terminal UI testing:
 
 ```bash
 ./gradlew :app:installDist
-./app/build/install/app/bin/app
+./app/build/install/dioptra/bin/dioptra
 ```
 
-This avoids TTY issues that can happen when running a terminal UI through Gradle's `run` task.
-
-## WSL Test Workflow From Windows
-
-If the main project is edited from Windows and native terminal rendering needs to be tested in WSL, sync the project into the Linux filesystem first:
-
-```bash
-rsync -a \
-  --exclude .gradle \
-  --exclude build \
-  --exclude .idea \
-  --exclude '**/build' \
-  /mnt/c/Users/<windows-user>/IdeaProjects/dioptra/ \
-  ~/projects/dioptra/
-```
-
-Then run:
-
-```bash
-cd ~/projects/dioptra
-./gradlew :app:installDist
-./app/build/install/app/bin/app
-```
-
-## Build A Runnable Distribution
-
-Create an installable distribution.
-
-### Windows
+On Windows PowerShell or CMD, use:
 
 ```powershell
 .\gradlew.bat :app:installDist
-```
-
-Run the generated script:
-
-```powershell
-.\app\build\install\app\bin\app.bat
-```
-
-### Linux, WSL, macOS
-
-```bash
-./gradlew :app:installDist
-```
-
-Run the generated script:
-
-```bash
-./app/build/install/app/bin/app
+.\app\build\install\dioptra\bin\dioptra.bat
 ```
 
 ## Logging

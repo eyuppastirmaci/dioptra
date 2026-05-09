@@ -11,6 +11,8 @@ class SwingTerminalFactory(
     override fun create(): Terminal {
         return DefaultTerminalFactory()
             .setInitialTerminalSize(initialTerminalSize)
-            .createTerminal()
+            .setPreferTerminalEmulator(true)
+            .setTerminalEmulatorTitle("Dioptra")
+            .createTerminalEmulator()
     }
 }
