@@ -12,7 +12,11 @@ import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
 import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
 import io.github.eyuppastirmaci.dioptra.application.commandstats.LoadCommandStatsUseCase
 import io.github.eyuppastirmaci.dioptra.application.latency.LoadLatencyStatsUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceAnalysisUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.SaveNamespaceAnalysisSettingsUseCase
 import io.github.eyuppastirmaci.dioptra.application.slowlog.LoadSlowlogUseCase
+import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.domain.dashboard.RedisDashboardSnapshot
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.MetricRow
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
@@ -32,6 +36,9 @@ class DashboardScreen(
     private val loadSlowlogUseCase: LoadSlowlogUseCase,
     private val loadCommandStatsUseCase: LoadCommandStatsUseCase,
     private val loadLatencyStatsUseCase: LoadLatencyStatsUseCase,
+    private val namespaceAnalysisUseCaseFactory: (NamespaceAnalysisSettings) -> Pair<LoadNamespaceAnalysisUseCase, LoadNamespaceDetailUseCase>,
+    namespaceAnalysisSettings: NamespaceAnalysisSettings,
+    private val saveNamespaceAnalysisSettingsUseCase: SaveNamespaceAnalysisSettingsUseCase,
     private val readOnly: Boolean,
     private val productionSafety: Boolean,
     private val protectedNamespaceRules: ProtectedNamespaceRules,
@@ -41,6 +48,8 @@ class DashboardScreen(
     private val keyMatcher: TuiKeyMatcher,
     private val disconnect: (() -> TuiScreen)? = null,
 ) : TuiScreen {
+
+    private var namespaceAnalysisSettings = namespaceAnalysisSettings
 
     /**
      * Renders the Redis dashboard layout using the active TUI context.
@@ -100,6 +109,25 @@ class DashboardScreen(
                         loadLatencyStatsUseCase = loadLatencyStatsUseCase,
                         back = { this },
                     )
+                )
+            }
+
+            isCharacter(keyStroke, 'n') -> {
+                val (loadNamespaceAnalysisUseCase, loadNamespaceDetailUseCase) = namespaceAnalysisUseCaseFactory(namespaceAnalysisSettings)
+                TuiScreenResult.Navigate(
+                    nextScreen = NamespaceAnalysisScreen(
+                        loadNamespaceAnalysisUseCase = loadNamespaceAnalysisUseCase,
+                        loadNamespaceDetailUseCase = loadNamespaceDetailUseCase,
+                        namespaceAnalysisSettings = namespaceAnalysisSettings,
+                        openSettings = { createNamespaceSettingsScreen() },
+                        back = { this },
+                    )
+                )
+            }
+
+            isCharacter(keyStroke, 'a') -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = createNamespaceSettingsScreen()
                 )
             }
 
@@ -412,10 +440,23 @@ class DashboardScreen(
             ""
         }
         return if (disconnect == null) {
-            "k:key  s:slow  c:cmd  l:lat  q/esc:exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  n:ns  a:aset  q/esc:exit$mode$protected"
         } else {
-            "k:key  s:slow  c:cmd  l:lat  d:disc  q/esc:exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  n:ns  a:aset  d:disc  q/esc:exit$mode$protected"
         }
+    }
+
+    private fun createNamespaceSettingsScreen(): TuiScreen {
+        return NamespaceAnalysisSettingsScreen(
+            initialSettings = namespaceAnalysisSettings,
+            saveSettings = saveNamespaceAnalysisSettingsUseCase::save,
+            saveAvailable = saveNamespaceAnalysisSettingsUseCase.canPersist(),
+            unavailableMessage = saveNamespaceAnalysisSettingsUseCase.unavailableReason(),
+            onSaved = { savedSettings ->
+                namespaceAnalysisSettings = savedSettings
+            },
+            back = { this },
+        )
     }
 
     private fun isExitKey(keyStroke: KeyStroke): Boolean {

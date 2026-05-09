@@ -8,6 +8,12 @@ import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.DeleteKeyValueUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.ExpireKeyUseCase
 import io.github.eyuppastirmaci.dioptra.application.key.LoadKeyDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceAnalysisUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
+import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceAnalysisEngine
+import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceHealthScorer
+import io.github.eyuppastirmaci.dioptra.application.namespace.NamespaceResolver
+import io.github.eyuppastirmaci.dioptra.application.namespace.SaveNamespaceAnalysisSettingsUseCase
 import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditContext
 import io.github.eyuppastirmaci.dioptra.application.safety.OperationAuditLogger
 import io.github.eyuppastirmaci.dioptra.application.safety.ProtectedNamespaceRules
@@ -17,6 +23,7 @@ import io.github.eyuppastirmaci.dioptra.config.ConnectionResolver
 import io.github.eyuppastirmaci.dioptra.config.HoconConnectionProfileStore
 import io.github.eyuppastirmaci.dioptra.config.HoconLastUsedConnectionStore
 import io.github.eyuppastirmaci.dioptra.config.LastUsedConnectionMetadata
+import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.config.RedisConnectionConfig
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisConnectionManager
 import io.github.eyuppastirmaci.dioptra.infrastructure.redis.RedisHealthClient
@@ -261,6 +268,30 @@ class ApplicationBootstrap {
             redisLatencyStatsClient = redisLatencyStatsClient,
         )
 
+        val namespaceAnalysisSettings = redisConnectionManager.config.namespaceAnalysisSettings
+        val namespaceAnalysisUseCaseFactory = { settings: NamespaceAnalysisSettings ->
+            val namespaceResolver = NamespaceResolver(
+                settings = settings,
+            )
+            val namespaceHealthScorer = NamespaceHealthScorer()
+            val namespaceAnalysisEngine = NamespaceAnalysisEngine(
+                redisKeyBrowserClient = redisKeyBrowserClient,
+                redisTtlMapper = redisTtlMapper,
+                redisMemoryUsageMapper = redisMemoryUsageMapper,
+                namespaceAnalysisSettings = settings,
+                namespaceResolver = namespaceResolver,
+                namespaceHealthScorer = namespaceHealthScorer,
+            )
+            Pair(
+                LoadNamespaceAnalysisUseCase(namespaceAnalysisEngine = namespaceAnalysisEngine),
+                LoadNamespaceDetailUseCase(namespaceAnalysisEngine = namespaceAnalysisEngine),
+            )
+        }
+        val saveNamespaceAnalysisSettingsUseCase = SaveNamespaceAnalysisSettingsUseCase(
+            profileStore = HoconConnectionProfileStore(),
+            connectionConfig = redisConnectionManager.config,
+        )
+
         val browseKeysUseCase = BrowseKeysUseCase(
             redisKeyBrowserClient = redisKeyBrowserClient,
             redisTypeMapper = redisTypeMapper,
@@ -295,6 +326,9 @@ class ApplicationBootstrap {
             loadSlowlogUseCase = loadSlowlogUseCase,
             loadCommandStatsUseCase = loadCommandStatsUseCase,
             loadLatencyStatsUseCase = loadLatencyStatsUseCase,
+            namespaceAnalysisUseCaseFactory = namespaceAnalysisUseCaseFactory,
+            namespaceAnalysisSettings = namespaceAnalysisSettings,
+            saveNamespaceAnalysisSettingsUseCase = saveNamespaceAnalysisSettingsUseCase,
             readOnly = readOnly,
             productionSafety = productionSafety,
             protectedNamespaceRules = protectedNamespaceRules,

@@ -5,6 +5,7 @@ import com.googlecode.lanterna.input.KeyType
 import io.github.eyuppastirmaci.dioptra.config.HoconConnectionProfileStore
 import io.github.eyuppastirmaci.dioptra.config.HoconLastUsedConnectionStore
 import io.github.eyuppastirmaci.dioptra.config.LastUsedConnectionMetadata
+import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.config.RedisConnectionConfig
 import io.github.eyuppastirmaci.dioptra.config.RedisConnectionProfile
 import io.github.eyuppastirmaci.dioptra.presentation.tui.component.Panel
@@ -34,6 +35,14 @@ class ConnectionScreen(
     private var password = initialConfig.password.orEmpty()
     private var tls = initialConfig.tls
     private var saveConnection = profiles.isEmpty()
+    private var namespaceDelimiters = initialConfig.namespaceAnalysisSettings.normalizedDelimiters.joinToString(",")
+    private var namespaceDepth = initialConfig.namespaceAnalysisSettings.normalizedNamespaceDepth.toString()
+    private var expectedNamespaces = initialConfig.namespaceAnalysisSettings.normalizedExpectedNamespaces.joinToString(",")
+    private var allowedKeyPatterns = initialConfig.namespaceAnalysisSettings.normalizedAllowedKeyPatterns.joinToString(",")
+    private var ignoredKeyPatterns = initialConfig.namespaceAnalysisSettings.normalizedIgnoredKeyPatterns.joinToString(",")
+    private var allowWhitespaceInKeys = initialConfig.namespaceAnalysisSettings.allowWhitespaceInKeys
+    private var allowUppercaseInKeys = initialConfig.namespaceAnalysisSettings.allowUppercaseInKeys
+    private var allowRepeatedDelimiters = initialConfig.namespaceAnalysisSettings.allowRepeatedDelimiters
 
     init {
         if (initialConfig == RedisConnectionConfig()) {
@@ -46,7 +55,7 @@ class ConnectionScreen(
             left = 2,
             top = 1,
             width = 92,
-            height = 25,
+            height = 28,
         )
 
         Panel.draw(context, panelRect)
@@ -121,6 +130,18 @@ class ConnectionScreen(
             }
             isCharacter(keyStroke, ' ') && activeField == ConnectionField.SaveConnection -> {
                 saveConnection = !saveConnection
+                TuiScreenResult.Continue
+            }
+            isCharacter(keyStroke, ' ') && activeField == ConnectionField.AllowWhitespace -> {
+                allowWhitespaceInKeys = !allowWhitespaceInKeys
+                TuiScreenResult.Continue
+            }
+            isCharacter(keyStroke, ' ') && activeField == ConnectionField.AllowUppercase -> {
+                allowUppercaseInKeys = !allowUppercaseInKeys
+                TuiScreenResult.Continue
+            }
+            isCharacter(keyStroke, ' ') && activeField == ConnectionField.AllowRepeatedDelimiters -> {
+                allowRepeatedDelimiters = !allowRepeatedDelimiters
                 TuiScreenResult.Continue
             }
             isCharacter(keyStroke, 't') -> {
@@ -218,6 +239,24 @@ class ConnectionScreen(
             label = "Save",
             value = if (saveConnection) "[x] save connection without password" else "[ ] do not save",
         )
+
+        context.putText(
+            column = left,
+            row = top + 12,
+            text = "Namespace Analysis",
+            foregroundColor = context.theme.title,
+            backgroundColor = context.theme.panel,
+            bold = true,
+        )
+
+        drawField(context, left, top + 14, ConnectionField.NamespaceDelimiters, "Delimiters", namespaceDelimiters.ifBlank { ":" })
+        drawField(context, left, top + 15, ConnectionField.NamespaceDepth, "NS Depth", namespaceDepth)
+        drawField(context, left, top + 16, ConnectionField.ExpectedNamespaces, "Expected", expectedNamespaces.ifBlank { "-" })
+        drawField(context, left, top + 17, ConnectionField.AllowedKeyPatterns, "Allowed", allowedKeyPatterns.ifBlank { "-" })
+        drawField(context, left, top + 18, ConnectionField.IgnoredKeyPatterns, "Ignored", ignoredKeyPatterns.ifBlank { "-" })
+        drawField(context, left, top + 19, ConnectionField.AllowWhitespace, "Whitespace", if (allowWhitespaceInKeys) "allowed" else "flag anomaly")
+        drawField(context, left, top + 20, ConnectionField.AllowUppercase, "Uppercase", if (allowUppercaseInKeys) "allowed" else "flag anomaly")
+        drawField(context, left, top + 21, ConnectionField.AllowRepeatedDelimiters, "Repeat delim", if (allowRepeatedDelimiters) "allowed" else "flag anomaly")
     }
 
     private fun drawField(
@@ -337,6 +376,7 @@ class ConnectionScreen(
             tls = config.tls,
             timeoutMillis = config.timeoutMillis,
             requiresPassword = password.isNotEmpty(),
+            namespaceAnalysisSettings = config.namespaceAnalysisSettings,
         )
 
         runCatching {
@@ -388,6 +428,14 @@ class ConnectionScreen(
         username = ""
         password = ""
         tls = false
+        namespaceDelimiters = ":"
+        namespaceDepth = "1"
+        expectedNamespaces = ""
+        allowedKeyPatterns = ""
+        ignoredKeyPatterns = ""
+        allowWhitespaceInKeys = false
+        allowUppercaseInKeys = false
+        allowRepeatedDelimiters = false
     }
 
     private fun loadProfileIntoForm(profile: RedisConnectionProfile) {
@@ -398,6 +446,14 @@ class ConnectionScreen(
         username = profile.username.orEmpty()
         password = ""
         tls = profile.tls
+        namespaceDelimiters = profile.namespaceAnalysisSettings.normalizedDelimiters.joinToString(",")
+        namespaceDepth = profile.namespaceAnalysisSettings.normalizedNamespaceDepth.toString()
+        expectedNamespaces = profile.namespaceAnalysisSettings.normalizedExpectedNamespaces.joinToString(",")
+        allowedKeyPatterns = profile.namespaceAnalysisSettings.normalizedAllowedKeyPatterns.joinToString(",")
+        ignoredKeyPatterns = profile.namespaceAnalysisSettings.normalizedIgnoredKeyPatterns.joinToString(",")
+        allowWhitespaceInKeys = profile.namespaceAnalysisSettings.allowWhitespaceInKeys
+        allowUppercaseInKeys = profile.namespaceAnalysisSettings.allowUppercaseInKeys
+        allowRepeatedDelimiters = profile.namespaceAnalysisSettings.allowRepeatedDelimiters
     }
 
     private fun buildConfig(): RedisConnectionConfig {
@@ -409,6 +465,16 @@ class ConnectionScreen(
             username = username.takeIf { it.isNotBlank() },
             password = password.takeIf { it.isNotEmpty() },
             tls = tls,
+            namespaceAnalysisSettings = NamespaceAnalysisSettings(
+                delimiters = parseDelimitedValues(namespaceDelimiters).ifEmpty { listOf(":") },
+                namespaceDepth = namespaceDepth.toIntOrNull() ?: 1,
+                expectedNamespaces = parseDelimitedValues(expectedNamespaces),
+                allowedKeyPatterns = parseDelimitedValues(allowedKeyPatterns),
+                ignoredKeyPatterns = parseDelimitedValues(ignoredKeyPatterns),
+                allowWhitespaceInKeys = allowWhitespaceInKeys,
+                allowUppercaseInKeys = allowUppercaseInKeys,
+                allowRepeatedDelimiters = allowRepeatedDelimiters,
+            ),
         )
     }
 
@@ -431,8 +497,16 @@ class ConnectionScreen(
             ConnectionField.Database -> if (value.isDigit()) database += value
             ConnectionField.Username -> username += value
             ConnectionField.Password -> password += value
+            ConnectionField.NamespaceDelimiters -> namespaceDelimiters += value
+            ConnectionField.NamespaceDepth -> if (value.isDigit()) namespaceDepth += value
+            ConnectionField.ExpectedNamespaces -> expectedNamespaces += value
+            ConnectionField.AllowedKeyPatterns -> allowedKeyPatterns += value
+            ConnectionField.IgnoredKeyPatterns -> ignoredKeyPatterns += value
             ConnectionField.Tls,
-            ConnectionField.SaveConnection -> Unit
+            ConnectionField.SaveConnection,
+            ConnectionField.AllowWhitespace,
+            ConnectionField.AllowUppercase,
+            ConnectionField.AllowRepeatedDelimiters -> Unit
         }
     }
 
@@ -444,9 +518,23 @@ class ConnectionScreen(
             ConnectionField.Database -> database = database.dropLast(1)
             ConnectionField.Username -> username = username.dropLast(1)
             ConnectionField.Password -> password = password.dropLast(1)
+            ConnectionField.NamespaceDelimiters -> namespaceDelimiters = namespaceDelimiters.dropLast(1)
+            ConnectionField.NamespaceDepth -> namespaceDepth = namespaceDepth.dropLast(1)
+            ConnectionField.ExpectedNamespaces -> expectedNamespaces = expectedNamespaces.dropLast(1)
+            ConnectionField.AllowedKeyPatterns -> allowedKeyPatterns = allowedKeyPatterns.dropLast(1)
+            ConnectionField.IgnoredKeyPatterns -> ignoredKeyPatterns = ignoredKeyPatterns.dropLast(1)
             ConnectionField.Tls,
-            ConnectionField.SaveConnection -> Unit
+            ConnectionField.SaveConnection,
+            ConnectionField.AllowWhitespace,
+            ConnectionField.AllowUppercase,
+            ConnectionField.AllowRepeatedDelimiters -> Unit
         }
+    }
+
+    private fun parseDelimitedValues(value: String): List<String> {
+        return value.split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
     }
 
     private fun selectPreviousProfile() {
@@ -494,7 +582,15 @@ class ConnectionScreen(
         Username,
         Password,
         Tls,
-        SaveConnection;
+        SaveConnection,
+        NamespaceDelimiters,
+        NamespaceDepth,
+        ExpectedNamespaces,
+        AllowedKeyPatterns,
+        IgnoredKeyPatterns,
+        AllowWhitespace,
+        AllowUppercase,
+        AllowRepeatedDelimiters;
 
         fun next(): ConnectionField {
             return entries[(ordinal + 1) % entries.size]

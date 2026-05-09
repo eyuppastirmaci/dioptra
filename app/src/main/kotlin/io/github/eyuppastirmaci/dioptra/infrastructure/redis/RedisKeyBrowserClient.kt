@@ -9,14 +9,19 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
+interface RedisKeyScanClient {
+
+    suspend fun scanPage(request: RedisKeyScanRequest = RedisKeyScanRequest()): RedisKeyScanPage
+}
+
 class RedisKeyBrowserClient(
     private val commands: RedisCommands<String, String>,
-) {
+) : RedisKeyScanClient {
 
     /**
      * Scans a single Redis key page using the given cursor, pattern, and count hint.
      */
-    suspend fun scanPage(request: RedisKeyScanRequest = RedisKeyScanRequest()): RedisKeyScanPage {
+    override suspend fun scanPage(request: RedisKeyScanRequest): RedisKeyScanPage {
         return withContext(Dispatchers.IO) {
             val scanArgs = ScanArgs.Builder
                 .matches(request.pattern)

@@ -9,6 +9,7 @@ data class RedisConnectionConfig(
     val password: String? = null,
     val tls: Boolean = false,
     val timeoutMillis: Long = 5_000,
+    val namespaceAnalysisSettings: NamespaceAnalysisSettings = NamespaceAnalysisSettings(),
 ) {
     val uri: String
         get() = buildRedisUri(maskPassword = false)

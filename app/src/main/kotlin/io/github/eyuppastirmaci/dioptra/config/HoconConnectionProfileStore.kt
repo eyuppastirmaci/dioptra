@@ -80,6 +80,25 @@ class HoconConnectionProfileStore(
             tls = config.optionalBoolean("tls") ?: false,
             timeoutMillis = config.optionalLong("timeoutMillis") ?: 5_000,
             requiresPassword = config.optionalBoolean("requiresPassword") ?: false,
+            namespaceAnalysisSettings = readNamespaceAnalysisSettings(config),
+        )
+    }
+
+    private fun readNamespaceAnalysisSettings(config: Config): NamespaceAnalysisSettings {
+        if (!config.hasPath("analysis")) {
+            return NamespaceAnalysisSettings()
+        }
+
+        val analysisConfig = config.getConfig("analysis")
+        return NamespaceAnalysisSettings(
+            delimiters = analysisConfig.optionalStringList("delimiters") ?: listOf(":"),
+            namespaceDepth = analysisConfig.optionalInt("namespaceDepth") ?: 1,
+            expectedNamespaces = analysisConfig.optionalStringList("expectedNamespaces") ?: emptyList(),
+            allowedKeyPatterns = analysisConfig.optionalStringList("allowedKeyPatterns") ?: emptyList(),
+            ignoredKeyPatterns = analysisConfig.optionalStringList("ignoredKeyPatterns") ?: emptyList(),
+            allowWhitespaceInKeys = analysisConfig.optionalBoolean("allowWhitespaceInKeys") ?: false,
+            allowUppercaseInKeys = analysisConfig.optionalBoolean("allowUppercaseInKeys") ?: false,
+            allowRepeatedDelimiters = analysisConfig.optionalBoolean("allowRepeatedDelimiters") ?: false,
         )
     }
 
@@ -111,6 +130,44 @@ class HoconConnectionProfileStore(
                 appendLine("    tls = ${profile.tls}")
                 appendLine("    timeoutMillis = ${profile.timeoutMillis}")
                 appendLine("    requiresPassword = ${profile.requiresPassword}")
+                appendLine("    analysis {")
+                append("      delimiters = [")
+                profile.namespaceAnalysisSettings.normalizedDelimiters.forEachIndexed { delimiterIndex, delimiter ->
+                    if (delimiterIndex > 0) {
+                        append(", ")
+                    }
+                    appendQuoted(delimiter)
+                }
+                appendLine("]")
+                appendLine("      namespaceDepth = ${profile.namespaceAnalysisSettings.normalizedNamespaceDepth}")
+                append("      expectedNamespaces = [")
+                profile.namespaceAnalysisSettings.normalizedExpectedNamespaces.forEachIndexed { namespaceIndex, namespace ->
+                    if (namespaceIndex > 0) {
+                        append(", ")
+                    }
+                    appendQuoted(namespace)
+                }
+                appendLine("]")
+                append("      allowedKeyPatterns = [")
+                profile.namespaceAnalysisSettings.normalizedAllowedKeyPatterns.forEachIndexed { patternIndex, pattern ->
+                    if (patternIndex > 0) {
+                        append(", ")
+                    }
+                    appendQuoted(pattern)
+                }
+                appendLine("]")
+                append("      ignoredKeyPatterns = [")
+                profile.namespaceAnalysisSettings.normalizedIgnoredKeyPatterns.forEachIndexed { patternIndex, pattern ->
+                    if (patternIndex > 0) {
+                        append(", ")
+                    }
+                    appendQuoted(pattern)
+                }
+                appendLine("]")
+                appendLine("      allowWhitespaceInKeys = ${profile.namespaceAnalysisSettings.allowWhitespaceInKeys}")
+                appendLine("      allowUppercaseInKeys = ${profile.namespaceAnalysisSettings.allowUppercaseInKeys}")
+                appendLine("      allowRepeatedDelimiters = ${profile.namespaceAnalysisSettings.allowRepeatedDelimiters}")
+                appendLine("    }")
                 append("  }")
                 if (index < config.profiles.lastIndex) {
                     append(',')
@@ -154,6 +211,10 @@ class HoconConnectionProfileStore(
 
     private fun Config.optionalBoolean(path: String): Boolean? {
         return if (hasPath(path)) getBoolean(path) else null
+    }
+
+    private fun Config.optionalStringList(path: String): List<String>? {
+        return if (hasPath(path)) getStringList(path) else null
     }
 
     companion object {

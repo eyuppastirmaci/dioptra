@@ -3,7 +3,8 @@
 <p align="center">
   A Kotlin terminal UI for inspecting, analyzing, and safely operating Redis databases.<br>
   Connects only to explicitly configured instances, turns raw Redis output into structured views,<br>
-  and presents dashboards, key browsing, and type-aware key detail in a focused TUI.
+  and presents dashboards, slowlog and latency analysis, namespace risk views, key browsing,<br>
+  and type-aware key detail in a focused TUI.
 </p>
 
 <p align="center">
@@ -42,6 +43,12 @@ Dioptra currently provides a foundation for safe Redis inspection:
 - Operations per second
 - Key count from Redis keyspace data
 - Keyspace hit and miss metrics
+- Persistence health summary
+- Replication health summary
+- Slowlog viewer with command, duration, timestamp, argument preview, client address, and client name display
+- Slowlog risk classification, repeated slow command grouping, and suspicious command warnings
+- Commandstats dashboard
+- Latency dashboard
 - SCAN-based key browser
 - Pattern search input
 - Cursor-based key pagination
@@ -59,6 +66,10 @@ Dioptra currently provides a foundation for safe Redis inspection:
 - Per-key `TYPE` display
 - Per-key `TTL` display
 - Per-key `MEMORY USAGE` display
+- Namespace analysis with basic namespace grouping, key count, average TTL, no-TTL count, estimated memory usage, TTL coverage, memory concentration, and health score
+- Top-N risky namespaces, unexpected namespace discovery, and key naming anomaly detection
+- Profile-backed namespace analysis settings including delimiters, namespace depth, expected namespaces, allowed key patterns, ignored key patterns, and naming anomaly rules
+- Runtime namespace analysis settings editor from the dashboard and namespace screens, with persistent save for saved profiles
 - File-based logging with credential masking
 - Debug logging mode
 - HOCON connection profiles stored without passwords
@@ -95,6 +106,12 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 - Operations per second metric
 - Uptime, selected database, and active connection profile metrics
 - Maxmemory policy, eviction count, blocked clients, connected client warning state, and memory fragmentation hint
+- Persistence health summary
+- Replication health summary
+- Slowlog viewer with command, duration, timestamp, argument preview, client address, and client name display
+- Slowlog risk classification, repeated slow command grouping, and suspicious command warnings
+- Commandstats dashboard
+- Latency dashboard
 - SCAN-based key browser
 - Pattern search input
 - Cursor-based key pagination
@@ -111,14 +128,18 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 - Display key type
 - Display key TTL
 - Display key memory usage
+- Namespace analysis overview and detail screens
+- Basic namespace grouping, key count, average TTL, no-TTL count, estimated memory usage, TTL coverage, memory concentration, and health score
+- Top risky namespaces, unexpected namespace discovery, and naming anomaly detection
+- Namespace analysis settings in the connection form
+- Runtime namespace analysis settings screen with persistent save for saved profiles
+- Allowed-key suppression and ignored-key exclusion controls for namespace analysis
 - Dashboard disconnect flow back to the connection screen
 - Reusable TUI theme and components
 - Terminal backend selection for Windows, Linux, WSL, and macOS
 
 ### Planned For v0.1
 
-- Slowlog viewer
-- Basic namespace summary
 - Safe delete with confirmation
 - Expire key action
 - Further key-detail polish (editing values, richer formatting, edge-case hardening)
@@ -126,9 +147,7 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 ### Planned For Later Versions
 
 - Deeper dashboard metrics and warnings beyond the current Redis INFO overview
-- Namespace analysis with TTL coverage, memory concentration, health scoring, and risky namespace detection
 - Big key and no-TTL analysis with top-N views and risk markers
-- Slowlog and production debugging screens with repeated slow command grouping and suspicious command warnings
 - Safer operations including read-only mode, production safety mode, protected namespace rules, dry-run previews, and operation audit logs
 - Markdown report export, session summaries, analysis snapshots, and before/after comparison
 - Advanced Redis workflows such as Pub/Sub monitor, stream consumer group inspection, stream lag warnings, and MONITOR-based live command feed
@@ -180,6 +199,16 @@ profiles = [
     tls = false
     timeoutMillis = 5000
     requiresPassword = false
+    analysis {
+      delimiters = [":"]
+      namespaceDepth = 1
+      expectedNamespaces = ["user", "session", "cache"]
+      allowedKeyPatterns = ["bull:*"]
+      ignoredKeyPatterns = ["tmp:*", "__redis__:*"]
+      allowWhitespaceInKeys = false
+      allowUppercaseInKeys = false
+      allowRepeatedDelimiters = false
+    }
   },
   {
     name = "staging"
@@ -190,9 +219,28 @@ profiles = [
     tls = true
     timeoutMillis = 5000
     requiresPassword = true
+    analysis {
+      delimiters = [":"]
+      namespaceDepth = 2
+      expectedNamespaces = ["tenant:cache", "tenant:session"]
+      allowedKeyPatterns = ["Bull Job:*"]
+      ignoredKeyPatterns = []
+      allowWhitespaceInKeys = false
+      allowUppercaseInKeys = true
+      allowRepeatedDelimiters = false
+    }
   }
 ]
 ```
+
+Namespace analysis profile settings:
+
+- `delimiters`: key segmentation rules used for namespace grouping
+- `namespaceDepth`: how many key segments form the namespace identity
+- `expectedNamespaces`: namespace-level allowlist used for unexpected namespace discovery
+- `allowedKeyPatterns`: matching keys stay visible in analysis but suppress anomaly and unexpected alarms
+- `ignoredKeyPatterns`: matching keys are excluded from namespace analysis totals
+- `allowWhitespaceInKeys`, `allowUppercaseInKeys`, `allowRepeatedDelimiters`: naming anomaly toggles
 
 Last-used metadata path:
 
@@ -445,7 +493,7 @@ Connection form:
 |---|---|
 | `Enter` | Connect |
 | `t` | Test connection |
-| `Space` | Toggle TLS or save checkbox |
+| `Space` | Toggle TLS, save checkbox, or namespace anomaly flags |
 | `ArrowUp/ArrowDown/Tab` | Move between fields |
 | `ESC` | Back to saved connection list, when saved connections exist |
 | `q` | Exit |
@@ -455,9 +503,44 @@ Connection form:
 | Key | Action |
 |---|---|
 | `k` | Open key browser |
+| `s` | Open slowlog viewer |
+| `c` | Open commandstats dashboard |
+| `l` | Open latency dashboard |
+| `n` | Open namespace analysis |
+| `a` | Open namespace analysis settings |
 | `d` | Disconnect and return to connection screen |
 | `q` | Exit |
 | `ESC` | Exit |
+
+### Slowlog
+
+| Key | Action |
+|---|---|
+| `j` / `k` or `Up/Down` | Move selected slowlog entry |
+| `s` | Change sort mode, when available |
+| `r` | Refresh slowlog data |
+| `b` / `ESC` | Return to dashboard |
+| `q` | Exit |
+
+### Commandstats
+
+| Key | Action |
+|---|---|
+| `j` / `k` or `Up/Down` | Move selected command row |
+| `s` | Change sort mode |
+| `r` | Refresh commandstats |
+| `b` / `ESC` | Return to dashboard |
+| `q` | Exit |
+
+### Latency
+
+| Key | Action |
+|---|---|
+| `j` / `k` or `Up/Down` | Move selected latency row |
+| `s` | Change sort mode |
+| `r` | Refresh latency metrics |
+| `b` / `ESC` | Return to dashboard |
+| `q` | Exit |
 
 ### Key Browser
 
@@ -495,6 +578,37 @@ Shown after opening a key from the key browser (`Enter` on a key). Shortcuts can
 | `v` | Toggle value presentation (e.g. STRING preview vs raw / pretty JSON where supported) |
 | `b` / `ESC` | Return to the key browser |
 | `q` | Exit the application |
+
+### Namespace Analysis
+
+| Key | Action |
+|---|---|
+| `j` / `k` or `Up/Down` | Move selected namespace |
+| `Enter` | Open selected namespace detail |
+| `s` | Change namespace sort mode |
+| `a` | Open namespace analysis settings |
+| `r` | Refresh namespace analysis |
+| `b` / `ESC` | Return to dashboard |
+| `q` | Exit |
+
+### Namespace Detail
+
+| Key | Action |
+|---|---|
+| `r` | Refresh namespace detail |
+| `b` / `ESC` | Return to namespace analysis |
+| `q` | Exit |
+
+### Namespace Analysis Settings
+
+| Key | Action |
+|---|---|
+| `Enter` | Save settings for the active saved profile |
+| `Space` | Toggle naming anomaly flags |
+| `ArrowUp/ArrowDown/Tab` | Move between fields |
+| `Backspace` | Delete previous character in editable fields |
+| `b` / `ESC` | Return without saving |
+| `q` | Exit |
 
 ## License
 
