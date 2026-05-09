@@ -81,6 +81,7 @@ class HoconConnectionProfileStore(
             timeoutMillis = config.optionalLong("timeoutMillis") ?: 5_000,
             requiresPassword = config.optionalBoolean("requiresPassword") ?: false,
             namespaceAnalysisSettings = readNamespaceAnalysisSettings(config),
+            riskAnalysisSettings = readRiskAnalysisSettings(config),
         )
     }
 
@@ -99,6 +100,24 @@ class HoconConnectionProfileStore(
             allowWhitespaceInKeys = analysisConfig.optionalBoolean("allowWhitespaceInKeys") ?: false,
             allowUppercaseInKeys = analysisConfig.optionalBoolean("allowUppercaseInKeys") ?: false,
             allowRepeatedDelimiters = analysisConfig.optionalBoolean("allowRepeatedDelimiters") ?: false,
+        )
+    }
+
+    private fun readRiskAnalysisSettings(config: Config): RiskAnalysisSettings {
+        if (!config.hasPath("analysis.risk")) {
+            return RiskAnalysisSettings()
+        }
+
+        val riskConfig = config.getConfig("analysis.risk")
+        return RiskAnalysisSettings(
+            bigKeyThresholdBytes = riskConfig.optionalLong("bigKeyThresholdBytes") ?: 1_048_576L,
+            largeHashFieldThreshold = riskConfig.optionalLong("largeHashFieldThreshold") ?: 10_000L,
+            largeListLengthThreshold = riskConfig.optionalLong("largeListLengthThreshold") ?: 10_000L,
+            largeSetMemberThreshold = riskConfig.optionalLong("largeSetMemberThreshold") ?: 10_000L,
+            largeZsetMemberThreshold = riskConfig.optionalLong("largeZsetMemberThreshold") ?: 10_000L,
+            largeStreamEntryThreshold = riskConfig.optionalLong("largeStreamEntryThreshold") ?: 10_000L,
+            topKeyCount = riskConfig.optionalInt("topKeyCount") ?: 20,
+            scanCount = riskConfig.optionalLong("scanCount") ?: 100L,
         )
     }
 
@@ -167,6 +186,16 @@ class HoconConnectionProfileStore(
                 appendLine("      allowWhitespaceInKeys = ${profile.namespaceAnalysisSettings.allowWhitespaceInKeys}")
                 appendLine("      allowUppercaseInKeys = ${profile.namespaceAnalysisSettings.allowUppercaseInKeys}")
                 appendLine("      allowRepeatedDelimiters = ${profile.namespaceAnalysisSettings.allowRepeatedDelimiters}")
+                appendLine("      risk {")
+                appendLine("        bigKeyThresholdBytes = ${profile.riskAnalysisSettings.normalizedBigKeyThresholdBytes}")
+                appendLine("        largeHashFieldThreshold = ${profile.riskAnalysisSettings.normalizedLargeHashFieldThreshold}")
+                appendLine("        largeListLengthThreshold = ${profile.riskAnalysisSettings.normalizedLargeListLengthThreshold}")
+                appendLine("        largeSetMemberThreshold = ${profile.riskAnalysisSettings.normalizedLargeSetMemberThreshold}")
+                appendLine("        largeZsetMemberThreshold = ${profile.riskAnalysisSettings.normalizedLargeZsetMemberThreshold}")
+                appendLine("        largeStreamEntryThreshold = ${profile.riskAnalysisSettings.normalizedLargeStreamEntryThreshold}")
+                appendLine("        topKeyCount = ${profile.riskAnalysisSettings.normalizedTopKeyCount}")
+                appendLine("        scanCount = ${profile.riskAnalysisSettings.normalizedScanCount}")
+                appendLine("      }")
                 appendLine("    }")
                 append("  }")
                 if (index < config.profiles.lastIndex) {

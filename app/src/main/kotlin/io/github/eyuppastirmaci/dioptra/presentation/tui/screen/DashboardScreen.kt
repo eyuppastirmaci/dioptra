@@ -15,6 +15,7 @@ import io.github.eyuppastirmaci.dioptra.application.latency.LoadLatencyStatsUseC
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceAnalysisUseCase
 import io.github.eyuppastirmaci.dioptra.application.namespace.LoadNamespaceDetailUseCase
 import io.github.eyuppastirmaci.dioptra.application.namespace.SaveNamespaceAnalysisSettingsUseCase
+import io.github.eyuppastirmaci.dioptra.application.risk.LoadRiskAnalysisUseCase
 import io.github.eyuppastirmaci.dioptra.application.slowlog.LoadSlowlogUseCase
 import io.github.eyuppastirmaci.dioptra.config.NamespaceAnalysisSettings
 import io.github.eyuppastirmaci.dioptra.domain.dashboard.RedisDashboardSnapshot
@@ -36,6 +37,7 @@ class DashboardScreen(
     private val loadSlowlogUseCase: LoadSlowlogUseCase,
     private val loadCommandStatsUseCase: LoadCommandStatsUseCase,
     private val loadLatencyStatsUseCase: LoadLatencyStatsUseCase,
+    private val loadRiskAnalysisUseCase: LoadRiskAnalysisUseCase,
     private val namespaceAnalysisUseCaseFactory: (NamespaceAnalysisSettings) -> Pair<LoadNamespaceAnalysisUseCase, LoadNamespaceDetailUseCase>,
     namespaceAnalysisSettings: NamespaceAnalysisSettings,
     private val saveNamespaceAnalysisSettingsUseCase: SaveNamespaceAnalysisSettingsUseCase,
@@ -107,6 +109,15 @@ class DashboardScreen(
                 TuiScreenResult.Navigate(
                     nextScreen = LatencyStatsScreen(
                         loadLatencyStatsUseCase = loadLatencyStatsUseCase,
+                        back = { this },
+                    )
+                )
+            }
+
+            isCharacter(keyStroke, 'r') -> {
+                TuiScreenResult.Navigate(
+                    nextScreen = RiskAnalysisScreen(
+                        loadRiskAnalysisUseCase = loadRiskAnalysisUseCase,
                         back = { this },
                     )
                 )
@@ -440,9 +451,9 @@ class DashboardScreen(
             ""
         }
         return if (disconnect == null) {
-            "k:key  s:slow  c:cmd  l:lat  n:ns  a:aset  q/esc:exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  r:risk  n:ns  a:aset  q/esc:exit$mode$protected"
         } else {
-            "k:key  s:slow  c:cmd  l:lat  n:ns  a:aset  d:disc  q/esc:exit$mode$protected"
+            "k:key  s:slow  c:cmd  l:lat  r:risk  n:ns  a:aset  d:disc  q/esc:exit$mode$protected"
         }
     }
 

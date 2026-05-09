@@ -10,6 +10,7 @@ data class RedisConnectionProfile(
     val timeoutMillis: Long = 5_000,
     val requiresPassword: Boolean = false,
     val namespaceAnalysisSettings: NamespaceAnalysisSettings = NamespaceAnalysisSettings(),
+    val riskAnalysisSettings: RiskAnalysisSettings = RiskAnalysisSettings(),
 ) {
 
     fun toConnectionConfig(password: String? = null): RedisConnectionConfig {
@@ -23,6 +24,7 @@ data class RedisConnectionProfile(
             tls = tls,
             timeoutMillis = timeoutMillis,
             namespaceAnalysisSettings = namespaceAnalysisSettings,
+            riskAnalysisSettings = riskAnalysisSettings,
         )
     }
 }

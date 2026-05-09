@@ -377,6 +377,7 @@ class ConnectionScreen(
             timeoutMillis = config.timeoutMillis,
             requiresPassword = password.isNotEmpty(),
             namespaceAnalysisSettings = config.namespaceAnalysisSettings,
+            riskAnalysisSettings = config.riskAnalysisSettings,
         )
 
         runCatching {
