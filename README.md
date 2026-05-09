@@ -24,9 +24,85 @@
   <img src="https://img.shields.io/badge/Clikt-5.0.3-a6adc8?style=flat&labelColor=1e1e2e" alt="Clikt 5.0.3">
 </p>
 
-![Connection Info](.github/assets/connection.png)
-![Dashboard Info](.github/assets/dashboard.png)
-![Key Browser](.github/assets/key-browser.png)
+<table>
+  <tr>
+    <th colspan="2" align="left">Connection Setup</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/connections.png" alt="Dioptra Redis connection screen">
+    </td>
+    <td width="42%">
+      Connect to an explicit Redis instance through a local form, saved profile, or CLI-provided defaults. Dioptra keeps passwords out of saved profiles and lets each profile carry namespace analysis rules such as delimiters, expected namespaces, allowed patterns, and ignored patterns.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Redis Dashboard</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/dashboard.png" alt="Dioptra Redis dashboard">
+    </td>
+    <td width="42%">
+      See the current Redis health at a glance: connection status, selected database, server version, memory usage, client count, key count, ops/sec, keyspace hits and misses, persistence status, replication role, and operational warning hints.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Key Browser</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/key-browser.png" alt="Dioptra key browser">
+    </td>
+    <td width="42%">
+      Browse Redis keys with cursor-based <code>SCAN</code>, pattern search, page sorting, and per-key metadata. The table highlights key type, TTL, memory usage, no-TTL keys, and large keys so risky entries stand out before opening details.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Key Detail</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/key-detail.png" alt="Dioptra key detail screen">
+    </td>
+    <td width="42%">
+      Inspect a selected key with type-aware previews for strings, hashes, lists, sets, sorted sets, and streams. Dioptra shows TTL and memory metadata, collection size summaries, JSON-aware previews, pagination hints, raw view toggles, and safe operation shortcuts.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Namespace Analysis</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/namespace-analysis.png" alt="Dioptra namespace analysis screen">
+    </td>
+    <td width="42%">
+      Group keys into namespaces and review their operational risk. The analysis summarizes key count, TTL coverage, no-TTL concentration, estimated memory share, health score, risky namespaces, unexpected namespaces, and naming anomalies.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Slowlog Viewer</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/slowlog-viewer.png" alt="Dioptra slowlog viewer">
+    </td>
+    <td width="42%">
+      Review Redis slowlog entries with duration, command, argument preview, client information, repeated command grouping, suspicious command warnings, and risk classification for commands such as <code>KEYS</code>, <code>EVAL</code>, large collection reads, and broad scans.
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="left">Safe Operation Confirmation</th>
+  </tr>
+  <tr>
+    <td width="58%">
+      <img src=".github/assets/safe-operation.png" alt="Dioptra safe operation confirmation">
+    </td>
+    <td width="42%">
+      Confirm destructive operations before they run. Delete and expire flows show a focused preview of the target key, type, TTL state, and memory usage, with explicit confirm and cancel actions to reduce accidental production mistakes.
+    </td>
+  </tr>
+</table>
 
 ## What Dioptra Does
 
@@ -134,28 +210,39 @@ Dioptra is **under active development**. It is **not** a stable, versioned produ
 - Namespace analysis settings in the connection form
 - Runtime namespace analysis settings screen with persistent save for saved profiles
 - Allowed-key suppression and ignored-key exclusion controls for namespace analysis
+- Risk analysis screen for big keys, no-TTL keys, large collections, risky key patterns, eviction warnings, and maxmemory policy warnings
+- Top-N largest keys and top-N no-TTL keys
+- Large HASH, LIST, SET, ZSET, and STREAM detection
+- Safe expire and delete actions from key detail
+- Delete confirmation and destructive operation preview
+- Read-only mode, production safety mode, protected namespace rules, safe error messages, and operation audit logging
 - Dashboard disconnect flow back to the connection screen
 - Reusable TUI theme and components
 - Terminal backend selection for Windows, Linux, WSL, and macOS
 
-### Planned For v0.1
+### Planned Next
 
-- Safe delete with confirmation
-- Expire key action
-- Further key-detail polish (editing values, richer formatting, edge-case hardening)
+- Markdown report export
+- Session summary on exit
+- Save analysis snapshot
+- Diff two snapshots
+- Compare before/after cleanup
+- Generate redis-cli command suggestions
+- Command palette
+- Bookmark namespaces
+- Profile import/export
+- Team-shareable profile templates without secrets
 
 ### Planned For Later Versions
 
-- Deeper dashboard metrics and warnings beyond the current Redis INFO overview
-- Big key and no-TTL analysis with top-N views and risk markers
-- Safer operations including read-only mode, production safety mode, protected namespace rules, dry-run previews, and operation audit logs
-- Markdown report export, session summaries, analysis snapshots, and before/after comparison
-- Advanced Redis workflows such as Pub/Sub monitor, stream consumer group inspection, stream lag warnings, and MONITOR-based live command feed
-- Environment workflow helpers such as Docker Compose detection, SSH tunnel profiles, profile import/export, and team-shareable profile templates without secrets
-- Optional connection pool if concurrent analysis or monitoring workflows require it
+- Stream consumer group overview and stream lag warnings
+- Pub/Sub monitor and MONITOR live feed, with an explicit warning before enabling MONITOR
+- Docker Compose Redis helper
+- SSH tunnel profiles
+- Basic Redis Cluster support
 - Optional AI-assisted analysis after deterministic reports are available, including local-first health summaries, namespace risk explanations, cleanup plan narration, and "what should I inspect next?" recommendations
 - Optional semantic cache inspection using embedding providers, with `redis/langcache-embed-v3-small` as a possible local embedding model candidate
-- GraalVM native-image distribution
+- Testcontainers Redis integration tests, release zip/tar.gz validation, and GraalVM native-image investigation
 
 ## Connection Configuration
 
